@@ -1,0 +1,1205 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>영상 에이전트 팀 관제실</title>
+<meta name="description" content="디렉터 1명과 전문 에이전트 11명이 실제로 일한 기록(2026-11-11, 프로젝트 2건, 에이전트 실행 23회)을 재생하는 관제 대시보드">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+  tailwind.config = { theme: { extend: {
+    colors: { ink: 'var(--ink)', sub: 'var(--sub)', mut: 'var(--mut)', violet: 'var(--violet)', teal: 'var(--teal)', amber: 'var(--amber)', rose: 'var(--rose)' },
+    fontFamily: { display: ['Geist', 'IBM Plex Sans KR', 'system-ui', 'sans-serif'], mono: ['Geist Mono', 'ui-monospace', 'monospace'] }
+  } } };
+</script>
+<style>
+/* layout: control-room console. Sticky command bar with four switchable views; the graph is the stage, the log runs beside it. Single committed dark look. */
+:root{
+  color-scheme: dark;
+  --bg:#08090e; --panel-0:#0c0f17; --panel:#10131d; --panel-2:#151a27; --panel-3:#1d2335;
+  --line:#1b2030; --line-soft:#151a27; --line-2:#272e44; --line-3:#3a4360;
+  --ink:#e9ebf4; --sub:#a4abc0; --mut:#6a728b; --on-bar:#0b0d14;
+  --violet:#a092ff; --violet-deep:#5d4ee0; --teal:#41e2c7; --teal-deep:#0f9c89; --amber:#f6bb52; --rose:#ff6d8a;
+  --glow-v:rgba(160,146,255,.13); --glow-t:rgba(65,226,199,.07); --grid:rgba(120,130,170,.13);
+  --bar:rgba(8,9,14,.8); --hover:rgba(160,146,255,.05); --sel:rgba(160,146,255,.09);
+  --gap-a:rgba(255,109,138,.10); --gap-b:rgba(255,109,138,.02); --amber-line:rgba(246,187,82,.38);
+  --bar-future:rgba(160,146,255,.10); --bar-edge:rgba(160,146,255,.22); --head-ring:rgba(233,235,244,.14); --glow-ink:rgba(233,235,244,.5);
+  --f-display:"Geist","IBM Plex Sans KR",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans KR","Geist",system-ui,sans-serif;
+  --f-mono:"Geist Mono","IBM Plex Sans KR",ui-monospace,monospace;
+}
+html,body{background:var(--bg)}
+body{color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:40;background:var(--bg)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.app-bg{position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(900px 520px at 80% -10%,var(--glow-v),transparent 62%),radial-gradient(700px 480px at -6% 8%,var(--glow-t),transparent 60%)}
+.app-bg::after{content:"";position:absolute;inset:0;background-image:radial-gradient(var(--grid) 1px,transparent 1px);background-size:24px 24px;-webkit-mask-image:linear-gradient(to bottom,#000 0,transparent 75%);mask-image:linear-gradient(to bottom,#000 0,transparent 75%)}
+.shell{position:relative;z-index:1}
+.gutter{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+@media (min-width:1024px){.gutter{padding-left:max(32px,env(safe-area-inset-left,0px));padding-right:max(32px,env(safe-area-inset-right,0px))}}
+.inner{max-width:1440px;margin:0 auto}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px;border-radius:6px}
+
+/* top bar */
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:var(--bar);-webkit-backdrop-filter:blur(14px) saturate(140%);backdrop-filter:blur(14px) saturate(140%);border-bottom:1px solid var(--line)}
+.tb-row{display:flex;align-items:center;gap:12px 20px;min-height:64px;flex-wrap:wrap;padding-block:8px}
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.brand svg{width:34px;height:34px;flex:none}
+.brand-e{font:500 10px var(--f-mono);letter-spacing:.16em;color:var(--mut)}
+.brand-n{font-family:var(--f-display);font-weight:600;font-size:15px;letter-spacing:-.01em;white-space:nowrap}
+.tabs{position:relative;display:flex;gap:2px;margin-left:8px}
+.tab{position:relative;display:flex;flex-direction:column;align-items:flex-start;padding:7px 12px 9px;border-radius:9px;color:var(--mut);transition:color .2s,background .2s;white-space:nowrap}
+.tab:hover{color:var(--sub);background:rgba(255,255,255,.02)}
+.tab[aria-selected="true"]{color:var(--ink)}
+.tab-en{font:600 12.5px var(--f-display);letter-spacing:.01em}
+.tab-ko{font-size:11px;color:inherit;opacity:.8}
+.tab-ind{position:absolute;bottom:-1px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--violet),var(--teal));transition:left .35s cubic-bezier(.2,.8,.2,1),width .35s cubic-bezier(.2,.8,.2,1);box-shadow:0 0 12px var(--glow-v)}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.live{display:inline-flex;align-items:center;gap:7px;font:500 11px var(--f-mono);letter-spacing:.08em;color:var(--sub);white-space:nowrap}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 var(--teal);animation:beacon 2s infinite}
+.live.paused i{background:var(--mut);animation:none}
+@keyframes beacon{0%{box-shadow:0 0 0 0 rgba(65,226,199,.55)}70%{box-shadow:0 0 0 7px rgba(65,226,199,0)}100%{box-shadow:0 0 0 0 rgba(65,226,199,0)}}
+.seg{display:flex;padding:3px;border:1px solid var(--line-2);border-radius:11px;background:var(--panel-0)}
+.seg button{padding:5px 10px;border-radius:8px;font-size:12px;color:var(--sub);white-space:nowrap;transition:background .2s,color .2s}
+.seg button b{font:600 11px var(--f-mono);margin-right:5px;color:var(--mut)}
+.seg button[aria-pressed="true"]{background:var(--panel-3);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line-3)}
+.seg button[aria-pressed="true"] b{color:var(--teal)}
+@media (max-width:1100px){.tabs{order:3;width:100%;margin-left:0;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}}
+@media (max-width:767px){.topbar{position:relative;top:auto}}
+@media (max-width:560px){.live{display:none}.tb-right{margin-left:0;width:100%}.proj{width:100%}.proj button{flex:1}}
+
+/* hero */
+.hero{display:grid;gap:22px;padding-block:28px 22px}
+@media (min-width:1100px){.hero{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);align-items:end}}
+.eyebrow{font:500 11px var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mut)}
+.h1{font-family:var(--f-display);font-weight:600;font-size:clamp(28px,3.4vw,42px);line-height:1.12;letter-spacing:-.025em;margin-top:10px;text-wrap:balance}
+.h1 .grad{background:linear-gradient(90deg,var(--violet),var(--teal));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{color:var(--sub);max-width:62ch;margin-top:12px;font-size:14.5px}
+.kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (min-width:640px){.kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.kpi{border:1px solid var(--line);background:var(--panel-0);border-radius:14px;padding:13px 14px;min-width:0}
+.kpi-l{font-size:11.5px;color:var(--mut)}
+.kpi-v{display:block;font:600 22px var(--f-mono);letter-spacing:-.02em;margin-top:3px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.kpi-s{display:block;font-size:11px;color:var(--sub);margin-top:2px}
+
+/* cards */
+.card{position:relative;background:linear-gradient(180deg,var(--panel),var(--panel-0));border:1px solid var(--line);border-radius:16px;padding:18px;min-width:0}
+.card-h{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.t2{font-family:var(--f-display);font-size:18px;font-weight:600;letter-spacing:-.01em;margin-top:3px;text-wrap:balance}
+.t3{font-size:14px;font-weight:600;margin-top:2px}
+.cap{color:var(--sub);font-size:12.5px;margin-top:4px;max-width:70ch}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;border:1px solid var(--line-2);font:500 11.5px var(--f-mono);color:var(--sub);white-space:nowrap}
+.chip.warn{border-color:var(--amber-line);color:var(--amber)}
+.view{padding-bottom:8px}
+.view[hidden]{display:none!important}
+.view.enter{animation:viewIn .45s cubic-bezier(.2,.8,.2,1)}
+@keyframes viewIn{from{opacity:0;transform:translateY(8px)}}
+
+/* graph */
+.graph-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.clock{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.clock-l{font:500 10.5px var(--f-mono);letter-spacing:.12em;color:var(--mut)}
+.clock b{font:600 26px var(--f-mono);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.phase{width:100%;text-align:right;font-size:12px;color:var(--sub);min-height:18px}
+.graph-wrap{position:relative;overflow-x:auto;border-radius:12px;margin-inline:-6px}
+#graph{display:block;width:100%;min-width:640px;height:auto}
+#graph text{font-family:var(--f-body)}
+.edge{fill:none;stroke:var(--line-2);stroke-width:1.3;transition:stroke .3s}
+.edge.done{stroke:var(--line-3)}
+.edge.on{stroke-width:2.2;stroke-dasharray:5 9;animation:flow .9s linear infinite}
+.edge.on.work{stroke:var(--violet)} .edge.on.review{stroke:var(--teal)} .edge.on.stopped{stroke:var(--rose)}
+.edge-user{stroke:var(--amber-line);stroke-dasharray:3 6}
+@keyframes flow{to{stroke-dashoffset:-28}}
+.u-box{fill:var(--panel-2);stroke:var(--amber);stroke-width:1.2}
+.unode.flash .u-box{fill:var(--panel-3)}
+.u-t{fill:var(--ink);font-size:14px;font-weight:600;text-anchor:middle}
+.u-s{fill:var(--amber);font-size:10.5px;text-anchor:middle;font-family:var(--f-mono)}
+.d-orbit{fill:none;stroke:var(--line-2);stroke-dasharray:2 7}
+.d-ring{fill:none;stroke-width:1.8;stroke-dasharray:16 11;transform-box:fill-box;transform-origin:center;animation:spin 22s linear infinite}
+.dnode.busy .d-ring{animation-duration:7s}
+.d-core{fill:var(--panel-2);stroke:var(--line-3);stroke-width:1.3;transition:stroke .25s}
+.dnode.flash .d-core{stroke:var(--ink)}
+.d-t{fill:var(--ink);font-size:16px;font-weight:700;text-anchor:middle}
+.d-s{fill:var(--sub);font-size:10px;text-anchor:middle;font-family:var(--f-mono)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.anode,.dnode,.unode{cursor:pointer}
+.anode:focus,.dnode:focus,.unode:focus{outline:none}
+.a-halo{fill:var(--violet);opacity:0;transform-box:fill-box;transform-origin:center;transition:opacity .3s}
+.anode.work .a-halo{opacity:.17;animation:pulse 1.8s ease-in-out infinite}
+.anode.review .a-halo{fill:var(--teal);opacity:.17;animation:pulse 1.8s ease-in-out infinite}
+.anode.stopped .a-halo{fill:var(--rose);opacity:.17}
+@keyframes pulse{50%{transform:scale(1.2);opacity:.05}}
+.a-track{fill:none;stroke:var(--line);stroke-width:3}
+.a-ring{fill:none;stroke:var(--violet);stroke-width:3;stroke-linecap:round}
+.anode.review .a-ring{stroke:var(--teal)} .anode.stopped .a-ring{stroke:var(--rose)} .anode.done .a-ring{stroke:var(--line-3)}
+.a-core{fill:var(--panel-2);stroke:var(--line-2);stroke-width:1.3;transition:stroke .3s}
+.anode.work .a-core{stroke:var(--violet)} .anode.review .a-core{stroke:var(--teal)} .anode.stopped .a-core{stroke:var(--rose)}
+.anode.flash .a-core,.anode.sel .a-core,.anode:focus-visible .a-core,.dnode:focus-visible .d-core,.dnode.sel .d-core{stroke:var(--ink);stroke-width:2.2}
+.unode:focus-visible .u-box,.unode.sel .u-box{stroke-width:2.4}
+.anode.never{opacity:.38}
+.a-code{fill:var(--ink);font:600 13px var(--f-mono);text-anchor:middle;letter-spacing:.04em}
+.a-name{fill:var(--ink);font-size:13.5px;font-weight:600;text-anchor:middle;paint-order:stroke;stroke:var(--panel-0);stroke-width:4px;stroke-linejoin:round}
+.a-slug{fill:var(--mut);font:400 10px var(--f-mono);text-anchor:middle;paint-order:stroke;stroke:var(--panel-0);stroke-width:4px;stroke-linejoin:round}
+.a-badge{opacity:0;transition:opacity .3s}
+.a-badge.show{opacity:1}
+.a-badge circle{fill:var(--bg);stroke:var(--line-3)}
+.a-badge text{fill:var(--sub);font:600 10px var(--f-mono);text-anchor:middle}
+@media (max-width:640px){.a-name{font-size:17px}.a-slug{display:none}.a-code{font-size:15px}}
+.pk circle{fill:var(--violet)} .pk.review circle{fill:var(--teal)} .pk.user circle{fill:var(--amber)} .pk.stopped circle{fill:var(--rose)}
+.pk .pk-g{opacity:.25} .pk .pk-1{opacity:.55} .pk .pk-2{opacity:.28}
+.fx-t{font:600 12px var(--f-mono);text-anchor:middle;fill:var(--teal);animation:fxUp 2.4s ease-out forwards;transform-box:fill-box}
+.fx-t.work{fill:var(--violet)} .fx-t.stopped{fill:var(--rose)} .fx-t.user{fill:var(--amber)}
+@keyframes fxUp{0%{opacity:0;transform:translateY(6px)}15%{opacity:1;transform:translateY(0)}75%{opacity:1}100%{opacity:0;transform:translateY(-14px)}}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:11.5px;color:var(--sub);margin-top:4px}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.note{font-size:11.5px;color:var(--mut)}
+
+/* inspector */
+.insp{position:absolute;left:12px;bottom:12px;width:min(320px,calc(100% - 24px));background:var(--panel-2);border:1px solid var(--line-3);border-radius:14px;padding:14px;box-shadow:0 18px 50px rgba(0,0,0,.45);animation:viewIn .25s ease-out;z-index:3}
+.insp-h{display:flex;align-items:center;gap:10px}
+.insp-code{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font:600 12px var(--f-mono);background:var(--panel-3);border:1px solid var(--line-3)}
+.insp-x{margin-left:auto;width:26px;height:26px;border-radius:8px;color:var(--sub);display:grid;place-items:center}
+.insp-x:hover{background:var(--panel-3);color:var(--ink)}
+.insp p{color:var(--sub);font-size:12.5px;margin-top:8px}
+.insp dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin-top:10px;font-size:12px}
+.insp dt{color:var(--mut)}
+.insp .runs{margin-top:10px;border-top:1px solid var(--line-2);padding-top:9px;font-size:12px;color:var(--sub);display:grid;gap:4px}
+.tool{display:inline-block;font:500 10.5px var(--f-mono);padding:1px 6px;border-radius:5px;margin:0 3px 3px 0;background:var(--panel-3);color:var(--sub)}
+.tool.w{color:var(--violet)} .tool.web{color:var(--teal)}
+
+/* controls */
+.ctrl{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
+.cbtn{width:36px;height:36px;display:grid;place-items:center;border-radius:10px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);flex:none;transition:border-color .2s,background .2s}
+.cbtn:hover{border-color:var(--line-3);background:var(--panel-3)}
+.cbtn svg{width:15px;height:15px}
+.speed button{font-family:var(--f-mono);font-size:11.5px;padding:5px 8px}
+.scrub{position:relative;flex:1 1 220px;height:32px;cursor:pointer;touch-action:none;min-width:180px}
+.scrub-track{position:absolute;left:0;right:0;top:14px;height:4px;border-radius:2px;background:var(--line)}
+.scrub-fill{position:absolute;left:0;top:14px;height:4px;border-radius:2px;background:linear-gradient(90deg,var(--violet),var(--teal));width:0}
+.scrub-run{position:absolute;top:22px;height:3px;border-radius:2px;opacity:.5;background:var(--violet)}
+.scrub-run.review{background:var(--teal)} .scrub-run.stopped{background:var(--rose)}
+.scrub-mark{position:absolute;top:6px;width:2px;height:6px;border-radius:1px;background:var(--amber)}
+.scrub-gap{position:absolute;top:10px;height:12px;border-radius:2px;background:repeating-linear-gradient(135deg,var(--gap-a) 0 4px,var(--gap-b) 4px 8px);box-shadow:inset 0 0 0 1px rgba(255,109,138,.25)}
+.scrub-head{position:absolute;top:9px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 4px var(--head-ring)}
+.scrub-time{font:500 11.5px var(--f-mono);color:var(--sub);white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* side panels */
+.ri{border:1px solid var(--line-2);border-radius:12px;padding:10px 12px;background:var(--panel-0);animation:viewIn .3s ease-out}
+.ri+.ri{margin-top:8px}
+.ri-top{display:flex;align-items:center;gap:8px;font-size:13px}
+.ri-dot{width:8px;height:8px;border-radius:50%;background:var(--violet);box-shadow:0 0 10px var(--violet);flex:none}
+.ri.review .ri-dot{background:var(--teal);box-shadow:0 0 10px var(--teal)} .ri.stopped .ri-dot{background:var(--rose);box-shadow:0 0 10px var(--rose)}
+.ri-t{margin-left:auto;font-size:11px;color:var(--sub)}
+.ri-task{font-size:12px;color:var(--sub);margin:3px 0 8px}
+.ri-bar{height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.ri-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--violet-deep),var(--violet))}
+.ri.review .ri-bar i{background:linear-gradient(90deg,var(--teal-deep),var(--teal))} .ri.stopped .ri-bar i{background:var(--rose)}
+.empty{font-size:12.5px;color:var(--mut);border:1px dashed var(--line-2);border-radius:12px;padding:12px}
+.log{max-height:330px;overflow-y:auto;font-size:12px;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+.log li{display:grid;grid-template-columns:auto auto 1fr;gap:8px;align-items:baseline;padding:5px 6px;border-radius:8px;line-height:1.45}
+.log li.new{animation:logIn .5s ease-out}
+@keyframes logIn{from{background:var(--sel);opacity:0;transform:translateY(-4px)}to{background:transparent}}
+.log time{font:500 11px var(--f-mono);color:var(--mut);font-variant-numeric:tabular-nums}
+.lt{font:600 10px var(--f-mono);padding:1px 6px;border-radius:5px;white-space:nowrap;color:var(--violet);background:rgba(160,146,255,.12)}
+.lt.review{color:var(--teal);background:rgba(65,226,199,.1)} .lt.user{color:var(--amber);background:rgba(246,187,82,.1)} .lt.stopped,.lt.gap{color:var(--rose);background:rgba(255,109,138,.1)}
+.lx{color:var(--sub);min-width:0}
+.lx b{color:var(--ink);font-weight:600}
+.files{display:flex;flex-wrap:wrap;gap:6px}
+.files code{font:500 11px var(--f-mono);color:var(--sub);background:var(--panel-0);border:1px solid var(--line-2);padding:3px 7px;border-radius:7px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.files code.new{animation:viewIn .4s ease-out;border-color:var(--teal-deep);color:var(--teal)}
+
+/* traces */
+.tr-sum{display:flex;flex-wrap:wrap;gap:8px}
+.tr-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:11.5px;color:var(--sub);margin:-4px 0 12px}
+.tr-legend i{display:inline-block;width:14px;height:8px;border-radius:3px;margin-right:6px;vertical-align:0}
+.gantt-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel-0)}
+.gantt{position:relative;min-width:860px}
+.g-row{display:grid;grid-template-columns:236px 1fr;align-items:center;height:38px;border-bottom:1px solid var(--line-soft)}
+.g-row[data-i]{cursor:pointer}
+.g-row[data-i]:hover{background:var(--hover)}
+.g-row.sel{background:var(--sel)}
+.g-label{display:flex;flex-direction:column;justify-content:center;padding:0 12px 0 14px;min-width:0;border-right:1px solid var(--line)}
+.g-ag{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:7px}
+.g-task{font-size:11px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-dot{width:7px;height:7px;border-radius:2px;flex:none;background:var(--violet)} .g-dot.review{background:var(--teal)} .g-dot.stopped{background:var(--rose)}
+.g-track{position:relative;height:100%}
+.g-axis{height:32px}
+.g-axis .g-ag{color:var(--mut);font:500 10.5px var(--f-mono);letter-spacing:.1em}
+.g-bar{position:absolute;top:11px;height:16px;border-radius:5px;background:var(--bar-future);box-shadow:inset 0 0 0 1px var(--bar-edge);transform-origin:left center;animation:grow .8s cubic-bezier(.2,.75,.2,1) both;animation-delay:calc(var(--i) * 45ms)}
+.g-bar.review{background:rgba(65,226,199,.08);box-shadow:inset 0 0 0 1px rgba(65,226,199,.25)}
+.g-bar.stopped{background:rgba(255,109,138,.08);box-shadow:inset 0 0 0 1px rgba(255,109,138,.3)}
+@keyframes grow{from{transform:scaleX(0);opacity:0}}
+.g-fill{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:inherit;background:linear-gradient(90deg,var(--violet-deep),var(--violet));box-shadow:0 0 14px rgba(160,146,255,.35)}
+.g-bar.review .g-fill{background:linear-gradient(90deg,var(--teal-deep),var(--teal));box-shadow:0 0 14px rgba(65,226,199,.3)}
+.g-bar.stopped .g-fill{background:repeating-linear-gradient(135deg,var(--rose) 0 5px,rgba(255,109,138,.35) 5px 9px);box-shadow:none}
+.g-dur{position:absolute;left:4px;top:50%;transform:translateY(-50%);font:600 10.5px var(--f-mono);color:var(--ink);background:rgba(8,9,14,.62);padding:0 5px;border-radius:4px;line-height:14px;white-space:nowrap;pointer-events:none}
+.g-bar.out .g-dur{left:calc(100% + 6px);color:var(--sub);background:none;padding:0}
+.g-rootbar{position:absolute;top:17px;height:4px;border-radius:2px;background:linear-gradient(90deg,var(--line-3),var(--line-2))}
+.g-dia{position:absolute;top:13px;width:11px;height:11px;margin-left:-5.5px;transform:rotate(45deg);background:var(--amber);border-radius:2px;box-shadow:0 0 10px rgba(246,187,82,.45)}
+.g-dia.pause,.g-dia.resume{background:var(--rose);box-shadow:none}
+.g-dia.request{background:var(--ink)}
+.g-over{position:absolute;top:0;bottom:0;left:236px;right:0;pointer-events:none}
+.g-tick{position:absolute;top:0;bottom:0;border-left:1px solid var(--line-soft)}
+.g-tick span{position:absolute;top:9px;left:6px;font:500 10.5px var(--f-mono);color:var(--mut);white-space:nowrap}
+.g-gap{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,var(--gap-a) 0 7px,var(--gap-b) 7px 14px);border-inline:1px dashed rgba(255,109,138,.35)}
+.g-gap span{position:absolute;top:44px;left:50%;transform:translateX(-50%);font-size:10.5px;color:var(--rose);white-space:nowrap;background:var(--panel-2);border:1px solid rgba(255,109,138,.3);padding:2px 7px;border-radius:6px}
+.g-mark{position:absolute;top:32px;bottom:0;border-left:1px dashed var(--amber-line)}
+.g-head{position:absolute;top:0;bottom:0;width:0;border-left:2px solid var(--ink);box-shadow:0 0 14px var(--glow-ink);margin-left:-1px}
+.g-head::before{content:"";position:absolute;top:2px;left:-6px;width:10px;height:10px;border-radius:50%;background:var(--ink)}
+.dgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (min-width:900px){.dgrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.dstat{border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:var(--panel-0);min-width:0}
+.dstat span{display:block;font-size:11px;color:var(--mut)}
+.dstat b{display:block;font:600 19px var(--f-mono);margin-top:2px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.dstat em{display:block;font-style:normal;font-size:11px;color:var(--sub);margin-top:1px}
+.pill{font:600 11px var(--f-mono);padding:4px 10px;border-radius:999px;color:var(--violet);background:rgba(160,146,255,.12);border:1px solid rgba(160,146,255,.3)}
+.pill.review{color:var(--teal);background:rgba(65,226,199,.1);border-color:rgba(65,226,199,.3)}
+.pill.stopped{color:var(--rose);background:rgba(255,109,138,.1);border-color:rgba(255,109,138,.3)}
+.tbar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--line);margin-top:8px}
+.tbar i{display:block;height:100%}
+.c1{background:var(--violet)} .c2{background:var(--teal)} .c3{background:var(--amber)} .c4{background:var(--sub)}
+.tleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.5px;color:var(--sub);margin-top:8px}
+.tleg i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+.dfiles{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:14px}
+.dfiles>span{font-size:11.5px;color:var(--mut);margin-right:4px}
+.dfiles code{font:500 11px var(--f-mono);color:var(--ink);background:var(--panel-0);border:1px solid var(--line-2);padding:3px 8px;border-radius:7px}
+.dfiles em{font-style:normal;font-size:12px;color:var(--sub)}
+
+/* usage */
+.gcard{display:flex;flex-direction:column}
+.gwrap{position:relative;max-width:300px;margin:4px auto 0;width:100%}
+.gauge{display:block;width:100%;height:auto;overflow:visible}
+.g-trk{fill:none;stroke:var(--line);stroke-width:14;stroke-linecap:round}
+.g-val{fill:none;stroke-width:14;stroke-linecap:round;transition:stroke-dashoffset 1.3s cubic-bezier(.2,.8,.2,1);filter:drop-shadow(0 0 8px rgba(160,146,255,.35))}
+.g-tk{stroke:var(--line-3);stroke-width:1.5}
+.g-tl{fill:var(--mut);font:500 9px var(--f-mono);text-anchor:middle}
+.gnum{position:absolute;left:0;right:0;bottom:4%;text-align:center}
+.gnum b{display:block;font:600 30px var(--f-mono);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.gnum span{display:block;font-size:11.5px;color:var(--sub)}
+.gfoot{font-size:12px;color:var(--sub);margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.gfoot b{color:var(--ink);font-weight:600}
+.slider{display:grid;grid-template-columns:1fr auto;gap:6px 10px;margin-top:12px;font-size:12px;color:var(--sub);align-items:center}
+.slider output{font:600 12px var(--f-mono);color:var(--amber)}
+.slider input{grid-column:1 / -1;width:100%;accent-color:var(--amber)}
+.tk{display:grid;grid-template-columns:150px 1fr 64px;gap:10px;align-items:center;padding:5px 0}
+.tk-n{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tk-n em{font-style:normal;font:500 10.5px var(--f-mono);color:var(--mut)}
+.tk-bar{height:12px;border-radius:4px;background:var(--line-soft);overflow:hidden}
+.tk-bar i{display:block;height:100%;width:0;border-radius:4px;transition:width 1s cubic-bezier(.2,.8,.2,1);background:linear-gradient(90deg,var(--violet-deep),var(--violet))}
+.tk-bar i.read{background:linear-gradient(90deg,var(--teal-deep),var(--teal))}
+.tk-v{font:500 12px var(--f-mono);text-align:right;color:var(--sub)}
+@media (max-width:520px){.tk{grid-template-columns:104px 1fr 54px}}
+.cost-big{font:600 40px var(--f-mono);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.cbar{display:flex;height:14px;border-radius:6px;overflow:hidden;background:var(--line);margin:12px 0 10px}
+.cbar i{display:block;height:100%;transition:width 1s cubic-bezier(.2,.8,.2,1)}
+.cleg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;font-size:12px}
+.cleg div{display:flex;align-items:center;gap:7px;min-width:0}
+.cleg i{width:9px;height:9px;border-radius:2px;flex:none}
+.cleg b{margin-left:auto;font:500 12px var(--f-mono)}
+.ctop{margin-top:14px;border-top:1px solid var(--line);padding-top:10px;display:grid;gap:5px;font-size:12px}
+.ctop div{display:flex;gap:10px}
+.ctop b{margin-left:auto;font:500 12px var(--f-mono);color:var(--sub)}
+table.cmp{width:100%;border-collapse:collapse;font-size:13px;min-width:520px}
+table.cmp th{text-align:left;font:500 11px var(--f-mono);letter-spacing:.06em;color:var(--mut);padding:8px 10px;border-bottom:1px solid var(--line-2)}
+table.cmp td{padding:10px;border-bottom:1px solid var(--line-soft)}
+table.cmp td.n{font-family:var(--f-mono);font-variant-numeric:tabular-nums;text-align:right}
+table.cmp th.n{text-align:right}
+table.cmp tr.cur td{background:var(--sel)}
+
+/* protocol */
+.steps{display:grid;gap:10px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:768px){.steps{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.step{position:relative;border:1px solid var(--line-2);border-radius:14px;padding:14px 14px 16px;background:var(--panel-0);overflow:hidden;transition:border-color .4s,background .4s,transform .4s}
+.step-n{font:600 11px var(--f-mono);color:var(--mut);letter-spacing:.08em}
+.step b{display:block;font-family:var(--f-display);font-size:15.5px;font-weight:600;margin:3px 0 4px}
+.step p{font-size:12.5px;color:var(--sub)}
+.step em{display:block;font-style:normal;font-size:11.5px;color:var(--teal);margin-top:8px;padding-top:8px;border-top:1px dashed var(--line-2)}
+.step::after{content:"";position:absolute;left:0;bottom:0;height:2px;width:0;background:linear-gradient(90deg,var(--violet),var(--teal))}
+.step.on{border-color:var(--violet-deep);background:linear-gradient(180deg,rgba(160,146,255,.07),var(--panel-0));transform:translateY(-2px)}
+.step.on .step-n{color:var(--violet)}
+.step.on::after{animation:stepbar 2.2s linear forwards}
+@keyframes stepbar{to{width:100%}}
+.chain{display:flex;flex-direction:column;gap:0;align-items:stretch}
+@media (min-width:1000px){.chain{flex-direction:row}}
+.ch-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:8px}
+.ch-k{font:600 11px var(--f-mono);letter-spacing:.1em;color:var(--mut)}
+.ev{border:1px solid var(--line-2);border-radius:12px;padding:10px 12px;background:var(--panel-0);font-size:12.5px;color:var(--sub);flex:1}
+.ev b{color:var(--ink);font:600 12px var(--f-mono);margin-right:6px}
+.ev q{color:var(--ink);quotes:"“" "”"}
+.ev.e{border-color:rgba(65,226,199,.28)} .ev.i{border-color:rgba(246,187,82,.3)} .ev.m{border-color:rgba(160,146,255,.4)} .ev.s{border-color:var(--line-3);background:linear-gradient(180deg,rgba(160,146,255,.08),var(--panel-0))}
+.ft{display:inline-block;font:600 10px var(--f-mono);padding:1px 5px;border-radius:4px;margin-left:4px;vertical-align:1px}
+.ft-c{color:var(--teal);background:rgba(65,226,199,.1)} .ft-i{color:var(--amber);background:rgba(246,187,82,.1)} .ft-h{color:var(--rose);background:rgba(255,109,138,.1)} .ft-u{color:var(--sub);background:var(--panel-3)}
+.ch-link{flex:none;position:relative;height:30px;width:2px;margin:6px auto;background:var(--line-2);overflow:hidden;border-radius:2px}
+.ch-link i{position:absolute;inset:0;background:linear-gradient(180deg,transparent,var(--teal),transparent);background-size:100% 200%;animation:linkV 1.6s linear infinite}
+@media (min-width:1000px){.ch-link{height:2px;width:34px;margin:auto 8px}.ch-link i{background:linear-gradient(90deg,transparent,var(--teal),transparent);background-size:200% 100%;animation-name:linkH}}
+@keyframes linkV{from{background-position:0 -100%}to{background-position:0 100%}}
+@keyframes linkH{from{background-position:-100% 0}to{background-position:100% 0}}
+.side3{display:grid;gap:10px;margin-top:14px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:768px){.side3{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.sc{border:1px solid var(--line-2);border-radius:12px;padding:12px 13px;background:var(--panel-0);font-size:12.5px;color:var(--sub)}
+.sc h4{font-size:13px;color:var(--ink);font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.sc.weak{border-color:rgba(255,109,138,.35)} .sc.drop{border-style:dashed} .sc.drop .x{text-decoration:line-through;text-decoration-color:var(--rose);color:var(--mut)}
+.pair{display:grid;grid-template-columns:minmax(0,1fr) 22px minmax(0,1fr) auto;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line-soft);font-size:12.5px}
+.pair:last-child{border-bottom:0}
+.pair .arr{color:var(--teal);text-align:center;font-family:var(--f-mono)}
+.pair .cnt{font:500 11px var(--f-mono);color:var(--sub);white-space:nowrap}
+.ftrow{display:grid;grid-template-columns:44px 1fr;gap:10px;align-items:center;margin-top:8px;font-size:12px}
+.ftbar{display:flex;height:16px;border-radius:5px;overflow:hidden}
+.ftbar i{display:block;height:100%;transition:width 1s}
+.dec{display:grid;grid-template-columns:44px minmax(0,1fr);gap:4px 10px;padding:8px 0;border-bottom:1px solid var(--line-soft);font-size:12.5px}
+.dec:last-child{border-bottom:0}
+.dec time{font:500 11px var(--f-mono);color:var(--mut);padding-top:2px}
+.dec .q{color:var(--sub)}
+.dec .a{display:inline-block;margin-top:4px;font-size:12px;color:var(--amber);background:rgba(246,187,82,.08);border:1px solid rgba(246,187,82,.25);padding:1px 8px;border-radius:6px}
+.tmx{width:100%;border-collapse:collapse;font-size:12px;min-width:460px}
+.tmx th{font:500 10.5px var(--f-mono);color:var(--mut);padding:6px 4px;text-align:center;border-bottom:1px solid var(--line-2)}
+.tmx th:first-child,.tmx td:first-child{text-align:left}
+.tmx td{padding:6px 4px;border-bottom:1px solid var(--line-soft);text-align:center}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--violet)}
+.dot.w{background:var(--teal)} .dot.no{background:transparent;box-shadow:inset 0 0 0 1px var(--line-3)}
+.scroll-x{overflow-x:auto}
+footer{color:var(--mut);font-size:11.5px;padding-block:26px 34px;border-top:1px solid var(--line);margin-top:26px}
+footer p+p{margin-top:6px}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
+</style>
+
+</head>
+<body>
+<div class="app-bg" aria-hidden="true"></div>
+<div class="shell">
+  <header class="topbar">
+    <div class="gutter"><div class="inner tb-row">
+      <a class="brand" href="#workflows" aria-label="영상 에이전트 팀 관제실">
+        <svg viewBox="0 0 34 34" aria-hidden="true">
+          <defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--violet)"/><stop offset="1" style="stop-color:var(--teal)"/></linearGradient></defs>
+          <rect x="1" y="1" width="32" height="32" rx="9" style="fill:var(--panel-2);stroke:var(--line-3)"/>
+          <g style="stroke:var(--line-3)" stroke-width="1.2"><line x1="17" y1="17" x2="9" y2="9"/><line x1="17" y1="17" x2="25" y2="9"/><line x1="17" y1="17" x2="27" y2="19"/><line x1="17" y1="17" x2="21" y2="27"/><line x1="17" y1="17" x2="11" y2="26"/><line x1="17" y1="17" x2="7" y2="18"/></g>
+          <line x1="17" y1="17" x2="25" y2="9" stroke="url(#bm)" stroke-width="1.8"/>
+          <g style="fill:var(--sub)"><circle cx="9" cy="9" r="1.8"/><circle cx="27" cy="19" r="1.8"/><circle cx="21" cy="27" r="1.8"/><circle cx="11" cy="26" r="1.8"/><circle cx="7" cy="18" r="1.8"/></g>
+          <circle cx="25" cy="9" r="2.4" style="fill:var(--teal)"/>
+          <circle cx="17" cy="17" r="4" fill="url(#bm)"/>
+        </svg>
+        <span class="min-w-0"><span class="brand-e block">AGENT OPS</span><span class="brand-n block">영상 에이전트 팀 관제실</span></span>
+      </a>
+      <nav class="tabs" role="tablist" aria-label="화면" id="tabs">
+        <button class="tab" role="tab" data-view="workflows" id="tab-workflows"><span class="tab-en">Workflows</span><span class="tab-ko">연결 그래프</span></button>
+        <button class="tab" role="tab" data-view="traces" id="tab-traces"><span class="tab-en">Traces</span><span class="tab-ko">작업 타임라인</span></button>
+        <button class="tab" role="tab" data-view="usage" id="tab-usage"><span class="tab-en">Usage</span><span class="tab-ko">효율 · 비용</span></button>
+        <button class="tab" role="tab" data-view="protocol" id="tab-protocol"><span class="tab-en">Protocol</span><span class="tab-ko">일하는 방식</span></button>
+        <span class="tab-ind" id="tab-ind" aria-hidden="true"></span>
+      </nav>
+      <div class="tb-right">
+        <span class="live" id="live"><i></i><span id="live-t">기록 재생 중</span></span>
+        <div class="seg proj" role="group" aria-label="프로젝트 선택">
+          <button data-pid="p1" aria-pressed="true"><b>P1</b>놓고 15초</button>
+          <button data-pid="p2" aria-pressed="false"><b>P2</b>노도르 10초</button>
+        </div>
+      </div>
+    </div></div>
+  </header>
+
+  <main class="gutter"><div class="inner">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">실제 작업 기록 · 2026-11-11 · 프로젝트 2건 · 에이전트 실행 23회</p>
+        <h1 class="h1">디렉터 하나, <span class="grad">전문 에이전트 열하나.</span></h1>
+        <p class="lead">서브에이전트는 서로를 부를 수 없습니다. 그래서 모든 지시와 결과는 총괄 디렉터를 거쳐 파일로 오갑니다. 이 화면은 Claude Code 세션 기록에 남은 실제 시각과 토큰 사용량을 그대로 재생합니다.</p>
+      </div>
+      <div>
+        <p class="eyebrow mb-2" id="kpi-title">P1 · 놓고(가칭) 고체 탈취제</p>
+        <div class="kpis" id="kpis"></div>
+      </div>
+    </section>
+
+    <!-- WORKFLOWS -->
+    <section class="view" id="view-workflows" role="tabpanel" aria-labelledby="tab-workflows">
+      <div class="grid gap-4 lg:grid-cols-12">
+        <div class="card lg:col-span-8">
+          <div class="graph-head">
+            <div><p class="eyebrow">Workflows</p><h2 class="t2">실행 그래프</h2></div>
+            <div class="clock"><span class="clock-l">기록 시각 KST</span><b id="clock">--:--:--</b><span class="phase" id="phase"></span></div>
+          </div>
+          <div class="graph-wrap">
+            <svg id="graph" viewBox="0 0 1000 660" role="img" aria-label="총괄 디렉터를 중심으로 사용자와 전문 에이전트 11명이 연결된 그래프"></svg>
+            <div class="insp" id="insp" hidden></div>
+          </div>
+          <div class="legend">
+            <span><i style="background:var(--violet)"></i>작업 (지시 → 결과)</span>
+            <span><i style="background:var(--teal)"></i>교차 검토 · 표현 검수</span>
+            <span><i style="background:var(--amber)"></i>사용자 결정</span>
+            <span><i style="background:var(--rose)"></i>결과 없이 종료</span>
+            <span class="note">노드를 누르면 역할과 실행 기록이 열립니다. 흐린 노드는 이 프로젝트에서 호출하지 않은 에이전트입니다.</span>
+          </div>
+          <div class="ctrl">
+            <button class="cbtn" id="btn-play" aria-label="일시정지"></button>
+            <button class="cbtn" id="btn-restart" aria-label="처음부터 다시 재생"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8a5.5 5.5 0 1 0 1.7-4"/><path d="M2.5 2.5v3h3"/></svg></button>
+            <div class="seg speed" role="group" aria-label="재생 속도" id="speed">
+              <button data-speed="30" aria-pressed="false">×30</button><button data-speed="60" aria-pressed="true">×60</button><button data-speed="120" aria-pressed="false">×120</button><button data-speed="240" aria-pressed="false">×240</button>
+            </div>
+            <div class="scrub" id="scrub" role="slider" tabindex="0" aria-label="재생 위치" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <div class="scrub-track"></div><div id="scrub-layer"></div><div class="scrub-fill" id="scrub-fill"></div><div class="scrub-head" id="scrub-head"></div>
+            </div>
+            <span class="scrub-time" id="scrub-time">0:00 / 0:00</span>
+          </div>
+        </div>
+        <aside class="lg:col-span-4 flex flex-col gap-4 min-w-0">
+          <div class="card">
+            <div class="card-h" style="margin-bottom:10px"><h3 class="t3">지금 실행 중</h3><span class="chip" id="active-count">0</span></div>
+            <div id="running"></div>
+          </div>
+          <div class="card">
+            <div class="card-h" style="margin-bottom:8px"><h3 class="t3">디렉터 로그</h3><span class="chip" id="log-count">0</span></div>
+            <ol class="log" id="log" aria-live="off"></ol>
+          </div>
+          <div class="card">
+            <div class="card-h" style="margin-bottom:10px"><h3 class="t3">에이전트가 만든 파일</h3><span class="chip" id="file-count">0</span></div>
+            <div class="files" id="files"></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- TRACES -->
+    <section class="view" id="view-traces" role="tabpanel" aria-labelledby="tab-traces" hidden>
+      <div class="card">
+        <div class="card-h">
+          <div><p class="eyebrow">Traces</p><h2 class="t2">작업 타임라인</h2><p class="cap" id="tr-name"></p></div>
+          <div class="tr-sum" id="tr-sum"></div>
+        </div>
+        <div class="tr-legend">
+          <span><i style="background:var(--violet)"></i>작업</span>
+          <span><i style="background:var(--teal)"></i>교차 검토 · 표현 검수</span>
+          <span><i style="background:repeating-linear-gradient(135deg,var(--rose) 0 4px,transparent 4px 7px)"></i>결과 없이 종료</span>
+          <span><i style="background:var(--amber);width:8px;height:8px;transform:rotate(45deg)"></i>사용자 결정</span>
+          <span>밝게 채워진 부분이 현재 재생 위치까지 진행된 구간입니다. 막대를 누르면 아래에 상세가 열립니다.</span>
+        </div>
+        <div class="gantt-scroll"><div class="gantt" id="gantt"></div></div>
+      </div>
+      <div class="card mt-4" id="detail"></div>
+    </section>
+
+    <!-- USAGE -->
+    <section class="view" id="view-usage" role="tabpanel" aria-labelledby="tab-usage" hidden>
+      <div class="grid gap-4 md:grid-cols-3">
+        <div class="card gcard">
+          <div class="card-h" style="margin-bottom:6px"><div><p class="eyebrow">Time</p><h3 class="t3">사람이 할 때(가정) 대비 단축</h3></div><span class="chip warn">가정값</span></div>
+          <div class="gwrap" id="g1"></div>
+          <label class="slider" for="human-days"><span>사람이 직접 할 때 걸린다고 가정한 시간</span><output id="human-out" for="human-days">3일</output><input type="range" id="human-days" min="0.5" max="10" step="0.5" value="3"></label>
+          <div class="gfoot" id="g1-foot"></div>
+        </div>
+        <div class="card gcard">
+          <div class="card-h" style="margin-bottom:6px"><div><p class="eyebrow">Cache</p><h3 class="t3">캐시 재사용률</h3></div><span class="chip">실측</span></div>
+          <div class="gwrap" id="g2"></div>
+          <div class="gfoot" id="g2-foot"></div>
+        </div>
+        <div class="card gcard">
+          <div class="card-h" style="margin-bottom:6px"><div><p class="eyebrow">Parallel</p><h3 class="t3">동시 실행 비율</h3></div><span class="chip">실측</span></div>
+          <div class="gwrap" id="g3"></div>
+          <div class="gfoot" id="g3-foot"></div>
+        </div>
+      </div>
+      <div class="grid gap-4 mt-4 lg:grid-cols-12">
+        <div class="card lg:col-span-7">
+          <div class="card-h">
+            <div><p class="eyebrow">Tokens</p><h3 class="t3">에이전트별 토큰</h3><p class="cap" id="tok-cap"></p></div>
+            <div class="seg" role="group" aria-label="토큰 종류" id="tok-mode">
+              <button data-mode="out" aria-pressed="true">생성</button><button data-mode="read" aria-pressed="false">읽음 (캐시 포함)</button>
+            </div>
+          </div>
+          <div id="tok-rows"></div>
+        </div>
+        <div class="card lg:col-span-5">
+          <div class="card-h" style="margin-bottom:4px"><div><p class="eyebrow">Cost</p><h3 class="t3">API 정가로 환산한 비용</h3></div><span class="chip warn">추정</span></div>
+          <div class="cost-big" id="cost-big">$0.00</div>
+          <p class="cap" id="cost-cap"></p>
+          <div class="cbar" id="cbar"></div>
+          <div class="cleg" id="cleg"></div>
+          <div class="ctop" id="ctop"></div>
+        </div>
+      </div>
+      <div class="card mt-4">
+        <div class="card-h"><div><p class="eyebrow">Compare</p><h3 class="t3">두 프로젝트 비교</h3></div></div>
+        <div class="scroll-x"><table class="cmp" id="cmp"></table></div>
+      </div>
+    </section>
+
+    <!-- PROTOCOL -->
+    <section class="view" id="view-protocol" role="tabpanel" aria-labelledby="tab-protocol" hidden>
+      <div class="card">
+        <div class="card-h"><div><p class="eyebrow">Protocol · 운영 절차</p><h2 class="t2">요청 하나가 지나가는 9단계</h2><p class="cap">번호는 실제 순서입니다. 각 칸의 마지막 줄은 이번 기록에서 실제로 있었던 일입니다.</p></div></div>
+        <div class="steps" id="steps">
+          <div class="step"><span class="step-n">01</span><b>접수</b><p>목적·결과물·범위를 brief.md에 정리합니다. 결과가 크게 갈리는 것만 한 번에 묻습니다.</p><em>P2 · 질문 4개를 한 번에: 실존 브랜드인지, 제작 범위, 용도, 채널</em></div>
+          <div class="step"><span class="step-n">02</span><b>설계 · 승인</b><p>learnings.md를 먼저 읽고 에이전트·순서·병렬 여부·예상 호출 수를 보고합니다. 승인 전에는 아무도 부르지 않습니다.</p><em>P2 · "팀으로 진행" → "승인, 시작" (16:36 · 16:37)</em></div>
+          <div class="step"><span class="step-n">03</span><b>지시</b><p>지시문에 폴더, 먼저 읽을 파일, 할 일, 산출물 경로, 완료 기준, 쓰기 허용 폴더를 반드시 넣습니다.</p><em>P1 카피라이터 지시문 · 먼저 읽을 파일 7개를 지정</em></div>
+          <div class="step"><span class="step-n">04</span><b>작업</b><p>각 에이전트는 자기 폴더에만 씁니다. 사실과 추론을 태그로 나눠 적습니다.</p><em>P2 리서치 · 50분, 도구 138회, 직접 쓴 리뷰 257건 분류</em></div>
+          <div class="step"><span class="step-n">05</span><b>인수인계</b><p>handoffs/에 목적·한 일·결정·근거·미해결·다음 할 일을 남기고, 디렉터는 이 파일 경로를 다음 에이전트에게 넘깁니다.</p><em>인수인계서 P1 6개 · P2 8개</em></div>
+          <div class="step"><span class="step-n">06</span><b>교차 검토</b><p>작성자가 아닌 검토자를 새로 부릅니다. 검토자는 동의만 하지 않고 문제와 개선 방향을 냅니다.</p><em>P2 기획 검토 · "수정 후 진행", 뚜껑을 덮는 이유가 화면만으로는 안 읽힐 위험 지적</em></div>
+          <div class="step"><span class="step-n">07</span><b>충돌 조정</b><p>근거를 비교해 디렉터가 결정하고 decisions.md에 남깁니다. 큰 방향 전환은 사용자가 승인합니다.</p><em>P2 · 환불 메시지 폐기 → "뚜껑 덮는 손"으로 전환</em></div>
+          <div class="step"><span class="step-n">08</span><b>표현 검수</b><p>쓰기 도구가 없는 검수자가 봅니다. 효능·수치·비교 표현은 [확인] 근거로 이어져야 통과합니다.</p><em>P1 · 조건부 통과, 금지 표현 0개, 수정 필수 4건 반영</em></div>
+          <div class="step"><span class="step-n">09</span><b>최종 보고 · 학습</b><p>"왜 이렇게 만들었나" 근거 표와 가장 약한 고리를 남기고, learnings.md에 교훈을 한 줄 더합니다.</p><em>P1 교훈 → P2 설계: 시간 경과 소품 금지</em></div>
+        </div>
+      </div>
+
+      <div class="card mt-4">
+        <div class="card-h"><div><p class="eyebrow">Evidence chain · P2</p><h2 class="t2">첫 장면 하나를 고객 리뷰까지 거슬러 올라가기</h2><p class="cap">뒤 단계의 모든 결정은 02_strategy/evidence_v2.md의 번호(E 근거 · I 인사이트 · M 메시지)를 인용합니다.</p></div></div>
+        <div class="chain">
+          <div class="ch-col">
+            <span class="ch-k">E · 근거</span>
+            <div class="ev e"><b>E3</b><span class="ft ft-c">확인</span><br>브랜드 공식 사용법: <q>악취가 없을 땐 덮어주세요</q></div>
+            <div class="ev e"><b>E19</b><span class="ft ft-c">확인</span><br>리뷰 중 향이 강하다·독하다 22건</div>
+            <div class="ev e"><b>E20</b><span class="ft ft-c">확인</span><br>고객이 뚜껑 덮기·랩 씌우기·소분으로 향 세기를 조절한 리뷰 7건</div>
+          </div>
+          <div class="ch-link" aria-hidden="true"><i></i></div>
+          <div class="ch-col">
+            <span class="ch-k">I · 인사이트</span>
+            <div class="ev i"><b>I2</b><span class="ft ft-i">추론</span><br>향 세기는 만족한 고객도 처음에 겪는 문제입니다. 해결법인 뚜껑 덮기는 고객이 이미 쓰고 있고, 브랜드 사용법에도 있습니다.</div>
+          </div>
+          <div class="ch-link" aria-hidden="true"><i></i></div>
+          <div class="ch-col">
+            <span class="ch-k">M · 메시지</span>
+            <div class="ev m"><b>M13-a</b>핵심 메시지<br><q>냄새 없을 땐 뚜껑을 덮어 두는 젤 탈취제</q><br><span class="note">제품 사실과 사용법만 말합니다. 효능·기간·순위 표현은 0개(M0).</span></div>
+          </div>
+          <div class="ch-link" aria-hidden="true"><i></i></div>
+          <div class="ch-col">
+            <span class="ch-k">장면</span>
+            <div class="ev s"><b>0~2초</b>컷 A<br>신발장 위에 열린 제품, 손이 뚜껑을 한 번 덮고 빠집니다.<br><span class="note">근거: M13-a, I2, E3</span></div>
+          </div>
+        </div>
+        <div class="side3">
+          <div class="sc weak"><h4>가장 약한 고리 <span class="ft ft-h">가설</span></h4>I12 · 덮는 손이 소리 없는 피드에서 사람을 멈추게 하는가. 광고를 본 비구매자 데이터가 없습니다(E0). 시안 제출 전에 무음 시청 테스트(5명 이상)로 확인합니다.</div>
+          <div class="sc drop"><h4>버린 메시지</h4><span class="x">M1 · "냄새가 그대로면 환불"</span><br>환불 보장이 집행 기간에도 유지된다는 브랜드 서면 확인을 받을 수 없어 폐기했습니다. 사용자 답변 19:26.</div>
+          <div class="sc"><h4>끝까지 [확인]인 것만 말한다</h4>공식 상세페이지의 "최대 3개월", "고객만족도 1위", 임상·라돈 문구는 근거를 확인하지 못해 광고에 쓰지 않습니다.</div>
+        </div>
+      </div>
+
+      <div class="grid gap-4 mt-4 lg:grid-cols-2">
+        <div class="card">
+          <div class="card-h"><div><p class="eyebrow">Cross review</p><h3 class="t3">교차 검토 짝 · 실제 실행 횟수</h3><p class="cap">작성한 에이전트가 자기 결과를 검토하지 않습니다.</p></div></div>
+          <div class="pair"><span>마케팅 전략</span><span class="arr">→</span><span>광고 기획이 검토</span><span class="cnt">P1 1 · P2 2</span></div>
+          <div class="pair"><span>광고 기획</span><span class="arr">→</span><span>마케팅 전략이 검토</span><span class="cnt">P1 1 · P2 1</span></div>
+          <div class="pair"><span>카피</span><span class="arr">→</span><span>마케팅 전략이 검토</span><span class="cnt">P2 1</span></div>
+          <div class="pair"><span>스토리보드</span><span class="arr">→</span><span>아트 디렉터가 검토</span><span class="cnt">P2 1</span></div>
+          <div class="pair"><span>전체 산출물</span><span class="arr">→</span><span>표현 검수 (최종 관문)</span><span class="cnt">P1 1 · P2 1</span></div>
+          <p class="note mt-2">P2의 전략 검토 2회 중 1회는 사용자 일시정지로 결과 없이 끝나, 재개 후 다시 실행했습니다.</p>
+        </div>
+        <div class="card">
+          <div class="card-h"><div><p class="eyebrow">Fact tags</p><h3 class="t3">문서에 붙은 사실성 태그</h3><p class="cap">모든 에이전트가 문장마다 근거 수준을 표시합니다. 프로젝트 폴더의 .md 문서 전체에서 센 개수입니다.</p></div></div>
+          <div id="ftags"></div>
+          <div class="tleg" style="margin-top:12px">
+            <span><i style="background:var(--teal)"></i>[확인] 직접 본 자료</span><span><i style="background:var(--amber)"></i>[추론] 근거에서 끌어낸 해석</span><span><i style="background:var(--rose)"></i>[가설] 검증 방법과 함께</span><span><i style="background:var(--line-3)"></i>[미확인]</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid gap-4 mt-4 lg:grid-cols-12">
+        <div class="card lg:col-span-7">
+          <div class="card-h"><div><p class="eyebrow">Human in the loop · P2</p><h3 class="t3">디렉터가 사용자에게 물은 것과 답</h3><p class="cap">방향이 갈리는 결정은 사용자가 내립니다. 시각은 KST입니다.</p></div></div>
+          <div id="decs"></div>
+        </div>
+        <div class="card lg:col-span-5">
+          <div class="card-h"><div><p class="eyebrow">Guardrails</p><h3 class="t3">기술적으로 막혀 있는 것</h3><p class="cap">지침은 모델에게 주는 지시입니다. 실제로 강제되는 것은 에이전트 파일의 도구 목록뿐입니다.</p></div></div>
+          <div class="scroll-x"><table class="tmx" id="tmx"></table></div>
+          <p class="note mt-2">Read에는 Glob·Grep이 함께 들어 있습니다. 표현 검수는 쓰기 도구가 없어서 결과를 디렉터가 저장합니다.</p>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <p>데이터: Claude Code 세션 기록(.jsonl)의 타임스탬프와 토큰 사용량, 프로젝트 폴더의 산출물. 2026-11-11 진행, 2026-11-12 집계. 시각은 한국 시간(KST)입니다.</p>
+      <p>비용은 Claude Opus 5.5 API 정가(100만 토큰당 입력 $4 · 출력 $20 · 캐시 읽기 $0.20 · 캐시 쓰기 $5(5분)/$8(1시간))로 환산한 추정치이며, 실제 결제 금액(구독 요금)과 다를 수 있습니다. "사람이 할 때" 시간은 측정값이 아니라 직접 조정하는 가정값입니다.</p>
+      <p>P2는 실존 브랜드 노도르에 제안하는 개인 시안이며, 노도르의 공식 광고가 아닙니다. P1의 「놓고」는 가칭인 가상 브랜드입니다.</p>
+    </footer>
+  </div></main>
+</div>
+
+<script>
+(() => {
+'use strict';
+const DATA = {"projects": [{"id": "p1", "name": "놓고(가칭) 고체 탈취제", "sub": "15초 숏폼 · 가상 브랜드 · 기획 문서까지", "start": "2026-11-11T01:50:37Z", "end": "2026-11-11T02:35:41Z", "director": {"tin": 112, "tout": 46126, "tcr": 4889460, "tcc": 280894, "tools": 41, "cost": 4.15}, "events": [{"t": "2026-11-11T01:50:37Z", "x": "/team-project 고체 탈취제 15초 숏폼 기획", "k": "request"}, {"t": "2026-11-11T01:52:57Z", "x": "이대로 진행 (팀 설계 승인)", "k": "approve"}, {"t": "2026-11-11T02:06:31Z", "x": "Go with A (콘셉트 A 「흘끗 루프」 선택)", "k": "decide"}, {"t": "2026-11-11T02:35:41Z", "x": "여기서 마무리 (최종 보고)", "k": "decide"}], "gaps": [], "runs": [{"a": "marketing-strategist", "t": "전략 · 핵심 메시지", "k": "work", "s": "2026-11-11T01:53:20Z", "e": "2026-11-11T01:56:27Z", "sec": 187, "tin": 8, "tout": 18642, "tcr": 67932, "tcc": 59213, "tools": 10, "reads": 7, "web": 0, "bash": 0, "writes": 3, "files": ["02_strategy/strategy.md", "handoffs/01_marketing-strategist.md"], "cost": 0.68}, {"a": "creative-planner", "t": "전략 교차 검토", "k": "review", "s": "2026-11-11T01:56:41Z", "e": "2026-11-11T01:58:22Z", "sec": 101, "tin": 10, "tout": 9495, "tcr": 99764, "tcc": 36028, "tools": 10, "reads": 8, "web": 0, "bash": 0, "writes": 2, "files": ["reviews/01_strategy_review_by_creative-planner.md"], "cost": 0.39}, {"a": "creative-planner", "t": "콘셉트 3안 · 15초 구성", "k": "work", "s": "2026-11-11T01:58:48Z", "e": "2026-11-11T02:02:44Z", "sec": 236, "tin": 12, "tout": 22984, "tcr": 185650, "tcc": 62006, "tools": 15, "reads": 11, "web": 0, "bash": 0, "writes": 4, "files": ["03_creative/concepts.md", "03_creative/structure_15s.md", "handoffs/02_creative-planner.md"], "cost": 0.81}, {"a": "marketing-strategist", "t": "기획 교차 검토", "k": "review", "s": "2026-11-11T02:02:54Z", "e": "2026-11-11T02:05:10Z", "sec": 136, "tin": 8, "tout": 13401, "tcr": 98510, "tcc": 48781, "tools": 10, "reads": 8, "web": 0, "bash": 0, "writes": 2, "files": ["reviews/02_creative_review_by_marketing-strategist.md"], "cost": 0.53}, {"a": "copywriter", "t": "자막 · 카피 (A안)", "k": "work", "s": "2026-11-11T02:07:01Z", "e": "2026-11-11T02:11:28Z", "sec": 267, "tin": 16, "tout": 31693, "tcr": 372170, "tcc": 78516, "tools": 19, "reads": 12, "web": 0, "bash": 0, "writes": 7, "files": ["04_copy/copy_15s.md", "handoffs/03_copywriter.md"], "cost": 1.1}, {"a": "art-director", "t": "비주얼 방향 · 와이어프레임", "k": "work", "s": "2026-11-11T02:07:01Z", "e": "2026-11-11T02:14:53Z", "sec": 471, "tin": 36, "tout": 41094, "tcr": 959771, "tcc": 114071, "tools": 21, "reads": 6, "web": 0, "bash": 12, "writes": 3, "files": ["05_design/visual_direction.md", "handoffs/04_art-director.md"], "cost": 1.58}, {"a": "video-director", "t": "스토리보드 · 촬영 계획", "k": "work", "s": "2026-11-11T02:15:15Z", "e": "2026-11-11T02:25:01Z", "sec": 586, "tin": 20, "tout": 57320, "tcr": 678206, "tcc": 130752, "tools": 24, "reads": 20, "web": 0, "bash": 0, "writes": 4, "files": ["06_video/storyboard.md", "06_video/shot_plan.md", "handoffs/05_video-director.md"], "cost": 1.94}, {"a": "performance-analyst", "t": "KPI · A/B 테스트 설계", "k": "work", "s": "2026-11-11T02:25:32Z", "e": "2026-11-11T02:28:38Z", "sec": 187, "tin": 20, "tout": 18915, "tcr": 325033, "tcc": 82043, "tools": 10, "reads": 2, "web": 0, "bash": 5, "writes": 3, "files": ["07_performance/measurement_plan.md", "handoffs/06_performance-analyst.md"], "cost": 0.85}, {"a": "compliance-reviewer", "t": "표현 검수 (최종 관문)", "k": "review", "s": "2026-11-11T02:25:32Z", "e": "2026-11-11T02:29:46Z", "sec": 255, "tin": 18, "tout": 22112, "tcr": 622575, "tcc": 102550, "tools": 28, "reads": 15, "web": 12, "bash": 0, "writes": 1, "files": [], "cost": 1.08}], "agg": {"sumSec": 2426, "unionSec": 1972, "overlapSec": 454, "wallSec": 2704, "gapSec": 0}}, {"id": "p2", "name": "노도르 젤 탈취제", "sub": "10초 숏폼 · 실존 브랜드 제안 시안(공식 광고 아님)", "start": "2026-11-11T07:34:55Z", "end": "2026-11-11T12:26:30Z", "director": {"tin": 184, "tout": 99055, "tcr": 10855086, "tcc": 741816, "tools": 86, "cost": 10.09}, "events": [{"t": "2026-11-11T07:34:55Z", "x": "노도르 탈취제 숏폼 제작 10초 (요청 접수)", "k": "request"}, {"t": "2026-11-11T07:35:49Z", "x": "실존 브랜드 · 영상 파일까지 · 릴스·쇼츠 9:16", "k": "decide"}, {"t": "2026-11-11T07:36:12Z", "x": "팀으로 진행", "k": "approve"}, {"t": "2026-11-11T07:37:30Z", "x": "승인, 시작 (팀 설계 승인)", "k": "approve"}, {"t": "2026-11-11T08:48:40Z", "x": "지금 하던 거 마무리하고 멈춰", "k": "pause"}, {"t": "2026-11-11T10:25:51Z", "x": "노도르 이어서", "k": "resume"}, {"t": "2026-11-11T10:26:52Z", "x": "광고 대상 380g 확정 · 환불 보장 서면 확인 못 받음", "k": "decide"}, {"t": "2026-11-11T10:36:09Z", "x": "브랜드와 관계 없음 → 제안 시안으로 정정 · 랜딩 수정 전제", "k": "decide"}, {"t": "2026-11-11T11:06:23Z", "x": "콘셉트 안 1 「한 번 덮는 손」 선택", "k": "decide"}, {"t": "2026-11-11T12:25:06Z", "x": "공개용 시안 표시 순서 변경 · 제품 직접 구매", "k": "decide"}], "gaps": [{"s": "2026-11-11T08:54:22Z", "e": "2026-11-11T10:25:51Z", "x": "사용자 일시정지"}], "runs": [{"a": "research-analyst", "t": "브랜드 · 경쟁 광고 · 리뷰 785건 조사", "k": "work", "s": "2026-11-11T07:38:03Z", "e": "2026-11-11T08:27:57Z", "sec": 2995, "tin": 240, "tout": 112823, "tcr": 15394999, "tcc": 288261, "tools": 138, "reads": 26, "web": 10, "bash": 96, "writes": 6, "files": ["01_research/brand_facts.md", "01_research/competitor_ads.md", "01_research/voice_of_customer.md", "01_research/research_summary.md", "handoffs/01_research-analyst.md"], "cost": 6.78}, {"a": "marketing-strategist", "t": "전략 · 근거 대장", "k": "work", "s": "2026-11-11T08:28:25Z", "e": "2026-11-11T08:46:24Z", "sec": 1079, "tin": 28, "tout": 125120, "tcr": 1085936, "tcc": 242946, "tools": 31, "reads": 25, "web": 0, "bash": 0, "writes": 6, "files": ["02_strategy/evidence.md", "02_strategy/strategy.md", "handoffs/02_marketing-strategist.md"], "cost": 3.93}, {"a": "creative-planner", "t": "전략 교차 검토 (일시정지로 결과 없음)", "k": "stopped", "s": "2026-11-11T08:46:40Z", "e": "2026-11-11T08:54:21Z", "sec": 462, "tin": 22, "tout": 5988, "tcr": 596356, "tcc": 76381, "tools": 25, "reads": 25, "web": 0, "bash": 0, "writes": 0, "files": [], "cost": 0.62}, {"a": "creative-planner", "t": "전략 교차 검토 (재실행)", "k": "review", "s": "2026-11-11T10:26:22Z", "e": "2026-11-11T10:34:01Z", "sec": 459, "tin": 22, "tout": 45164, "tcr": 518371, "tcc": 116540, "tools": 24, "reads": 22, "web": 0, "bash": 0, "writes": 2, "files": ["reviews/02_strategy_review_by_creative-planner.md"], "cost": 1.59}, {"a": "marketing-strategist", "t": "전략 2판 · 핵심 메시지 확정", "k": "work", "s": "2026-11-11T10:36:43Z", "e": "2026-11-11T10:55:12Z", "sec": 1109, "tin": 32, "tout": 134310, "tcr": 1533757, "tcc": 299668, "tools": 40, "reads": 26, "web": 0, "bash": 0, "writes": 14, "files": ["02_strategy/evidence_v2.md", "02_strategy/strategy_v2.md", "handoffs/02b_marketing-strategist_v2.md"], "cost": 4.49}, {"a": "creative-planner", "t": "10초 콘셉트 · 구성안", "k": "work", "s": "2026-11-11T10:55:31Z", "e": "2026-11-11T11:05:26Z", "sec": 594, "tin": 18, "tout": 61393, "tcr": 459817, "tcc": 201643, "tools": 19, "reads": 15, "web": 0, "bash": 0, "writes": 4, "files": ["03_creative/concepts.md", "03_creative/structure_10s.md", "handoffs/03_creative-planner.md"], "cost": 2.33}, {"a": "marketing-strategist", "t": "기획 교차 검토", "k": "review", "s": "2026-11-11T11:05:53Z", "e": "2026-11-11T11:15:29Z", "sec": 576, "tin": 10, "tout": 57170, "tcr": 141954, "tcc": 202767, "tools": 13, "reads": 11, "web": 0, "bash": 0, "writes": 2, "files": ["reviews/03_creative_review_by_marketing-strategist.md"], "cost": 2.19}, {"a": "copywriter", "t": "10초 자막 · CTA", "k": "work", "s": "2026-11-11T11:15:58Z", "e": "2026-11-11T11:31:02Z", "sec": 904, "tin": 32, "tout": 104205, "tcr": 1654751, "tcc": 268792, "tools": 27, "reads": 22, "web": 0, "bash": 0, "writes": 5, "files": ["04_copy/copy_10s.md", "handoffs/04_copywriter.md"], "cost": 3.76}, {"a": "marketing-strategist", "t": "카피 교차 검토", "k": "review", "s": "2026-11-11T11:31:50Z", "e": "2026-11-11T11:38:16Z", "sec": 386, "tin": 14, "tout": 40866, "tcr": 406744, "tcc": 122613, "tools": 15, "reads": 13, "web": 0, "bash": 0, "writes": 2, "files": ["reviews/04_copy_review_by_marketing-strategist.md"], "cost": 1.51}, {"a": "art-director", "t": "자막 배치 · 비주얼 방향", "k": "work", "s": "2026-11-11T11:31:50Z", "e": "2026-11-11T11:57:07Z", "sec": 1518, "tin": 90, "tout": 112917, "tcr": 5712538, "tcc": 256704, "tools": 56, "reads": 16, "web": 0, "bash": 35, "writes": 5, "files": ["05_design/frames/make_frames.py", "05_design/subtitle_layout.md", "05_design/visual_direction.md", "handoffs/05_art-director.md"], "cost": 4.68}, {"a": "video-director", "t": "스토리보드 · 촬영 리스트", "k": "work", "s": "2026-11-11T11:31:50Z", "e": "2026-11-11T12:07:50Z", "sec": 2160, "tin": 54, "tout": 246655, "tcr": 5214404, "tcc": 643950, "tools": 48, "reads": 34, "web": 0, "bash": 0, "writes": 14, "files": ["06_video/storyboard.md", "06_video/shot_list.md", "06_video/sound.md", "06_video/edit/edit_instructions.md", "handoffs/06_video-director.md"], "cost": 9.2}, {"a": "performance-analyst", "t": "KPI · 무음 시청 테스트 설계", "k": "work", "s": "2026-11-11T11:38:45Z", "e": "2026-11-11T11:57:34Z", "sec": 1129, "tin": 34, "tout": 120433, "tcr": 1322736, "tcc": 461062, "tools": 21, "reads": 1, "web": 0, "bash": 16, "writes": 4, "files": ["07_performance/silent_view_test.md", "07_performance/kpi_ab_plan.md", "handoffs/07_performance-analyst.md"], "cost": 4.98}, {"a": "art-director", "t": "스토리보드 시각 검토", "k": "review", "s": "2026-11-11T12:08:24Z", "e": "2026-11-11T12:18:25Z", "sec": 601, "tin": 30, "tout": 56370, "tcr": 1269394, "tcc": 190659, "tools": 21, "reads": 7, "web": 0, "bash": 12, "writes": 2, "files": ["reviews/06_storyboard_review_by_art-director.md"], "cost": 2.33}, {"a": "compliance-reviewer", "t": "촬영 전 표현 검수", "k": "review", "s": "2026-11-11T12:08:24Z", "e": "2026-11-11T12:20:16Z", "sec": 712, "tin": 34, "tout": 66182, "tcr": 2275570, "tcc": 267927, "tools": 30, "reads": 26, "web": 3, "bash": 0, "writes": 1, "files": [], "cost": 3.12}], "agg": {"sumSec": 14684, "unionSec": 11049, "overlapSec": 3635, "wallSec": 12006, "gapSec": 5489}}], "pricing": {"in": 4, "out": 20, "cr": 0.2, "cw5": 5, "cw1h": 8}};
+const AGENTS = [
+  {id:'research-analyst',code:'RS',ko:'리서치',full:'리서치 전문가',tools:['Read','Bash','WebSearch','Write'],dir:'01_research',rev:'마케팅 전략',role:'시장·경쟁 광고·고객 리뷰 조사, 출처 관리'},
+  {id:'marketing-strategist',code:'MS',ko:'마케팅 전략',full:'마케팅 전략 전문가',tools:['Read','Write'],dir:'02_strategy',rev:'광고 기획',role:'타깃·인사이트·핵심 메시지·KPI, 근거 대장(E·I·M)'},
+  {id:'creative-planner',code:'CP',ko:'광고 기획',full:'광고 기획 전문가',tools:['Read','Write'],dir:'03_creative',rev:'마케팅 전략',role:'콘셉트 여러 안, 초 단위 구성안'},
+  {id:'copywriter',code:'CW',ko:'카피라이터',full:'카피라이터',tools:['Read','Write'],dir:'04_copy',rev:'마케팅 전략 · 표현 검수',role:'훅·자막·CTA·캡션'},
+  {id:'art-director',code:'AD',ko:'아트 디렉터',full:'아트 디렉터',tools:['Read','Bash','Write'],dir:'05_design',rev:'광고 기획',role:'컬러·폰트·화면 구성, 와이어프레임 렌더링'},
+  {id:'video-director',code:'VD',ko:'영상 감독',full:'영상 제작 감독',tools:['Read','Write'],dir:'06_video',rev:'아트 디렉터',role:'스토리보드·촬영 리스트·사운드 방향'},
+  {id:'video-editor',code:'VE',ko:'영상 편집',full:'영상 편집 전문가',tools:['Read','Bash','Write'],dir:'06_video/edit',rev:'영상 제작 감독',role:'ffmpeg 편집·자막·출력'},
+  {id:'performance-analyst',code:'PA',ko:'성과 분석',full:'성과 분석 전문가',tools:['Read','Bash','Write'],dir:'07_performance',rev:'마케팅 전략',role:'KPI·A/B 테스트·시청 테스트 설계'},
+  {id:'compliance-reviewer',code:'CR',ko:'표현 검수',full:'표현·브랜드 검수',tools:['Read','WebSearch'],dir:'없음 (읽기 전용)',rev:'최종 관문',role:'과장·근거·저작권·상표 검수'},
+  {id:'portfolio-editor',code:'PE',ko:'포트폴리오',full:'포트폴리오 편집',tools:['Read','Bash','Write'],dir:'final',rev:'아트 디렉터',role:'소개 문서·PDF 구성'},
+  {id:'web-designer',code:'WD',ko:'웹 디자인',full:'웹 디자인 전문가',tools:['Read','Bash','Write','Edit'],dir:'디렉터가 지정',rev:'아트 디렉터',role:'포트폴리오 사이트 UI·구현'}
+];
+const AG = {}; AGENTS.forEach(a => { AG[a.id] = a; });
+const FTAGS = { p1:{c:302,i:483,h:208,u:180}, p2:{c:334,i:412,h:261,u:293} };
+const DECS = [
+  ['16:35','「노도르」는 실존 브랜드인가요, 가상 브랜드인가요?','실존 브랜드'],
+  ['16:35','"제작"은 어디까지인가요?','실제 영상 파일까지'],
+  ['16:35','용도는 무엇인가요?','실제 집행 → 19:36에 제안 시안으로 정정'],
+  ['16:35','채널과 화면 비율은요?','릴스·쇼츠 9:16'],
+  ['19:26','광고 대상을 공식몰 380g 젤형으로 확정할까요?','380g로 확정'],
+  ['19:26','환불 보장이 집행 기간에도 유지된다는 브랜드 서면 확인을 받을 수 있나요?','못 받음 / 모름 → 환불 메시지 폐기'],
+  ['19:36','노도르와 어떤 관계인가요? 집행에는 로고·패키지 사용 권한이 필요합니다.','관계 없음 (제안용)'],
+  ['19:36','클릭이 가는 상세페이지에 근거 미확인 주장이 남아 있습니다. 어떻게 할까요?','랜딩 수정을 집행 전제로'],
+  ['20:06','10초 콘셉트 3안 중 어느 안으로 갈까요?','안 1 「한 번 덮는 손」'],
+  ['21:25','공개 시 시안 표시 순서를 바꿀까요? 끝 두 글자가 잘리면 뜻이 뒤집힙니다.','순서 바꿈'],
+  ['21:25','"대가 없이 직접 구매" 문구를 쓰려면 사실이어야 합니다. 제품은 직접 사나요?','직접 구매']
+];
+
+const NS = 'http://www.w3.org/2000/svg';
+const $ = (s, el) => (el || document).querySelector(s);
+const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
+const pad = n => String(n).padStart(2, '0');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+const clamp01 = x => x < 0 ? 0 : x > 1 ? 1 : x;
+function fmtDur(s){ s = Math.round(s); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60; if (h) return h+'시간 '+m+'분'; if (m) return m+'분 '+pad(x)+'초'; return x+'초'; }
+function fmtClock(s){ s = Math.max(0, Math.round(s)); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60; return h ? h+':'+pad(m)+':'+pad(x) : m+':'+pad(x); }
+function fmtN(n){ return Math.round(n).toLocaleString('en-US'); }
+function trimz(s){ return s.indexOf('.') >= 0 ? s.replace(/0+$/, '').replace(/\.$/, '') : s; }
+function fmtK(n){ if (n >= 1e6) return trimz((n/1e6).toFixed(2))+'M'; if (n >= 1e4) return Math.round(n/1e3)+'k'; if (n >= 1e3) return trimz((n/1e3).toFixed(1))+'k'; return String(Math.round(n)); }
+function kst(ms, withSec){ const d = new Date(ms + 9*3600e3); return pad(d.getUTCHours())+':'+pad(d.getUTCMinutes())+(withSec === false ? '' : ':'+pad(d.getUTCSeconds())); }
+function money(x){ return '$'+x.toFixed(2); }
+
+/* ---------- project model ---------- */
+const PROJ = {};
+const ORD = {end:0, gap:1, user:2, start:3};
+DATA.projects.forEach(p => {
+  p.t0 = Date.parse(p.start);
+  p.runs.forEach((r, i) => { r.i = i; r.rs = (Date.parse(r.s)-p.t0)/1000; r.re = (Date.parse(r.e)-p.t0)/1000; r.ag = AG[r.a]; });
+  p.rEnd = Math.max((Date.parse(p.end)-p.t0)/1000, Math.max.apply(null, p.runs.map(r => r.re)));
+  p.gl = p.gaps.map(g => ({r0:(Date.parse(g.s)-p.t0)/1000, r1:(Date.parse(g.e)-p.t0)/1000, x:g.x}));
+  const gapTot = p.gl.reduce((s, g) => s + g.r1 - g.r0, 0);
+  p.activeTot = p.rEnd - gapTot;
+  const GV = Math.max(150, p.activeTot*0.04);
+  p.segs = []; let r = 0, v = 0;
+  p.gl.forEach(g => { p.segs.push({r0:r, r1:g.r0, v0:v, v1:v+g.r0-r, gap:false}); v += g.r0 - r; p.segs.push({r0:g.r0, r1:g.r1, v0:v, v1:v+GV, gap:true}); v += GV; r = g.r1; });
+  p.segs.push({r0:r, r1:p.rEnd, v0:v, v1:v+p.rEnd-r, gap:false});
+  p.V = p.segs[p.segs.length-1].v1;
+  p.ev = [];
+  p.events.forEach(e => p.ev.push({r:(Date.parse(e.t)-p.t0)/1000, type:'user', e:e}));
+  p.runs.forEach(rn => { p.ev.push({r:rn.rs, type:'start', run:rn}); p.ev.push({r:rn.re, type:'end', run:rn}); });
+  p.gl.forEach(g => p.ev.push({r:g.r0+0.01, type:'gap', g:g}));
+  p.ev.sort((a, b) => (a.r - b.r) || (ORD[a.type] - ORD[b.type]));
+  p.byAgent = {}; AGENTS.forEach(a => { p.byAgent[a.id] = p.runs.filter(x => x.a === a.id); });
+  p.reviews = p.runs.filter(x => x.k !== 'work').length;
+  p.decisions = p.events.filter(e => e.k === 'approve' || e.k === 'decide').length;
+  const sum = f => p.runs.reduce((s, x) => s + f(x), 0);
+  p.totOut = sum(x => x.tout) + p.director.tout;
+  p.totIn = sum(x => x.tin) + p.director.tin;
+  p.totCR = sum(x => x.tcr) + p.director.tcr;
+  p.totCWsub = sum(x => x.tcc);
+  p.totRead = p.totIn + p.totCR + p.totCWsub + p.director.tcc;
+  p.cost = { out:p.totOut*20/1e6, cr:p.totCR*0.2/1e6, cw:(p.totCWsub*5 + p.director.tcc*8)/1e6, inp:p.totIn*4/1e6 };
+  p.cost.total = p.cost.out + p.cost.cr + p.cost.cw + p.cost.inp;
+  const pts = []; p.runs.forEach(x => { pts.push([x.rs, 1]); pts.push([x.re, -1]); });
+  pts.sort((a, b) => a[0]-b[0] || a[1]-b[1]); let c = 0, mx = 0; pts.forEach(q => { c += q[1]; if (c > mx) mx = c; }); p.maxPar = mx;
+  PROJ[p.id] = p;
+});
+function vOf(p, r){ for (const s of p.segs){ if (r <= s.r1) return s.gap ? s.v0 + (r-s.r0)/(s.r1-s.r0)*(s.v1-s.v0) : s.v0 + Math.max(0, r-s.r0); } return p.V; }
+function rOf(p, v){ for (const s of p.segs){ if (v <= s.v1) return s.gap ? s.r0 + (v-s.v0)/(s.v1-s.v0)*(s.r1-s.r0) : s.r0 + (v-s.v0); } return p.rEnd; }
+function activeOf(p, r){ let x = r; p.gl.forEach(g => { x -= Math.max(0, Math.min(r, g.r1) - g.r0); }); return x; }
+function inGap(p, r){ return p.gl.some(g => r > g.r0 && r < g.r1); }
+
+/* ---------- state ---------- */
+let P = PROJ.p1;
+const state = { view:'workflows', playing:!reduce, speed:60, v:0, r:-1, seek:true, endedAt:0, sel:0, tokMode:'out', insp:null };
+
+/* ---------- graph ---------- */
+const CX = 500, CY = 338, RX = 395, RY = 238, RING = 2*Math.PI*36;
+AGENTS.forEach((a, i) => { const t = (-60 + i*30) * Math.PI/180; a.x = CX + RX*Math.cos(t); a.y = CY + RY*Math.sin(t); });
+function edgePath(a){
+  const dx = a.x-CX, dy = a.y-CY, L = Math.hypot(dx, dy), ux = dx/L, uy = dy/L;
+  const sx = CX+ux*76, sy = CY+uy*76, ex = a.x-ux*40, ey = a.y-uy*40;
+  const mx = (sx+ex)/2 - uy*24, my = (sy+ey)/2 + ux*24;
+  return 'M'+sx.toFixed(1)+' '+sy.toFixed(1)+' Q'+mx.toFixed(1)+' '+my.toFixed(1)+' '+ex.toFixed(1)+' '+ey.toFixed(1);
+}
+const nodeEls = {}, edgeEls = {};
+let dirEl, userEl, userEdge, pkLayer, fxLayer;
+function buildGraph(){
+  let s = '<defs>'
+    + '<pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="1.2" cy="1.2" r="1.1" style="fill:var(--line-2)"/></pattern>'
+    + '<radialGradient id="vig" cx="50%" cy="50%" r="62%"><stop offset="0" style="stop-color:var(--panel);stop-opacity:0"/><stop offset="1" style="stop-color:var(--panel-0);stop-opacity:.92"/></radialGradient>'
+    + '<linearGradient id="dirg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--violet)"/><stop offset="1" style="stop-color:var(--teal)"/></linearGradient>'
+    + '<filter id="glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="4"/></filter>'
+    + '</defs>'
+    + '<rect width="1000" height="660" fill="url(#dots)" opacity=".6"/><rect width="1000" height="660" fill="url(#vig)"/>'
+    + '<ellipse cx="'+CX+'" cy="'+CY+'" rx="'+RX+'" ry="'+RY+'" style="fill:none;stroke:var(--line-soft);stroke-dasharray:2 8"/>'
+    + '<g id="edges"><path id="e-user" class="edge edge-user" d="M500 72 L500 262"/>';
+  AGENTS.forEach(a => { s += '<path id="e-'+a.code+'" class="edge" d="'+edgePath(a)+'"/>'; });
+  s += '</g><g id="pk"></g>';
+  s += '<g class="unode" id="n-user" transform="translate(500 50)" tabindex="0" role="button" aria-label="사용자 정보 열기"><rect x="-92" y="-21" width="184" height="42" rx="21" class="u-box"/><text class="u-t" y="-1">사용자</text><text class="u-s" y="13">최종 결정권자</text></g>';
+  s += '<g class="dnode" id="n-dir" transform="translate('+CX+' '+CY+')" tabindex="0" role="button" aria-label="총괄 디렉터 정보 열기"><circle r="88" class="d-orbit"/><circle r="72" class="d-ring" style="stroke:url(#dirg)"/><circle r="58" class="d-core"/><text class="d-t" y="-3">총괄 디렉터</text><text class="d-s" y="16">메인 대화 · CLAUDE.md</text></g>';
+  AGENTS.forEach(a => {
+    s += '<g class="anode" id="n-'+a.code+'" data-code="'+a.code+'" transform="translate('+a.x.toFixed(1)+' '+a.y.toFixed(1)+')" tabindex="0" role="button" aria-label="'+a.full+' 정보 열기">'
+      + '<circle r="47" class="a-halo"/><circle r="36" class="a-track"/>'
+      + '<circle r="36" class="a-ring" transform="rotate(-90)" stroke-dasharray="'+RING.toFixed(2)+'" stroke-dashoffset="'+RING.toFixed(2)+'"/>'
+      + '<circle r="28" class="a-core"/><text class="a-code" y="4.5">'+a.code+'</text>'
+      + '<text class="a-name" y="56">'+a.ko+'</text><text class="a-slug" y="71">'+a.id+'</text>'
+      + '<g class="a-badge" transform="translate(26 -26)"><circle r="10"/><text y="3.6">0</text></g></g>';
+  });
+  s += '<g id="fx"></g>';
+  const svg = $('#graph'); svg.innerHTML = s;
+  dirEl = $('#n-dir'); userEl = $('#n-user'); userEdge = $('#e-user'); pkLayer = $('#pk'); fxLayer = $('#fx');
+  AGENTS.forEach(a => {
+    const el = $('#n-'+a.code); el._ring = $('.a-ring', el); el._badge = $('.a-badge', el); el._badgeT = $('.a-badge text', el);
+    nodeEls[a.code] = el; edgeEls[a.code] = $('#e-'+a.code);
+    const open = () => openInsp(a.id);
+    el.addEventListener('click', open); el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); open(); } });
+  });
+  [[dirEl,'director'],[userEl,'user']].forEach(([el, id]) => {
+    el.addEventListener('click', () => openInsp(id));
+    el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); openInsp(id); } });
+  });
+}
+
+/* packets */
+const packets = [];
+function spawnPacket(path, reverse, kind, onArrive){
+  if (reduce || !path) return;
+  const g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'pk '+kind);
+  g.innerHTML = '<circle r="9" class="pk-g" filter="url(#glow)"/><circle r="2.2" class="pk-2"/><circle r="3" class="pk-1"/><circle r="4.4"/>';
+  pkLayer.appendChild(g);
+  packets.push({el:g, c:g.children, path:path, len:path.getTotalLength(), rev:reverse, t0:performance.now(), dur:1000, cb:onArrive});
+}
+const ease = k => k < .5 ? 2*k*k : 1 - Math.pow(-2*k+2, 2)/2;
+function stepPackets(now){
+  for (let i = packets.length-1; i >= 0; i--){
+    const p = packets[i]; const k = (now - p.t0)/p.dur;
+    if (k >= 1){ p.el.remove(); packets.splice(i, 1); if (p.cb) p.cb(); continue; }
+    const at = kk => { const s = clamp01(kk); return p.path.getPointAtLength((p.rev ? 1-s : s)*p.len); };
+    const e = ease(k), pts = [at(e), at(e-.035), at(e-.07), at(e)];
+    const c = p.c; [[0,0],[1,2],[2,1],[3,0]].forEach(([ci, pi]) => { c[ci].setAttribute('cx', pts[pi].x.toFixed(1)); c[ci].setAttribute('cy', pts[pi].y.toFixed(1)); });
+  }
+}
+function clearPackets(){ packets.forEach(p => p.el.remove()); packets.length = 0; fxLayer && (fxLayer.innerHTML = ''); }
+function flash(el){ if (!el) return; el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 650); }
+function floatText(x, y, txt, kind){
+  if (reduce) return;
+  const t = document.createElementNS(NS, 'text'); t.setAttribute('x', x.toFixed(1)); t.setAttribute('y', y.toFixed(1)); t.setAttribute('class', 'fx-t '+kind); t.textContent = txt;
+  fxLayer.appendChild(t); setTimeout(() => t.remove(), 2500);
+}
+
+/* ---------- log, files, events ---------- */
+let logItems = [], fileList = [];
+function logHTML(e){
+  const t = kst(P.t0 + e.r*1000);
+  let tag = '', txt = '';
+  if (e.type === 'user'){ tag = '<span class="lt user">사용자</span>'; txt = esc(e.e.x); }
+  else if (e.type === 'start'){ const r = e.run; const w = r.k === 'work'; tag = '<span class="lt '+(w?'work':'review')+'">'+(w?'지시':'검토 요청')+'</span>'; txt = '디렉터 → <b>'+r.ag.full+'</b> · '+esc(r.t); }
+  else if (e.type === 'end'){
+    const r = e.run;
+    if (r.k === 'stopped'){ tag = '<span class="lt stopped">중단</span>'; txt = '<b>'+r.ag.full+'</b> 결과 없이 종료 · '+fmtDur(r.sec); }
+    else { tag = '<span class="lt '+r.k+'">'+(r.k==='work'?'인수인계':'검토 결과')+'</span>'; txt = '<b>'+r.ag.full+'</b> → 디렉터 · '+fmtDur(r.sec)+' · 생성 '+fmtK(r.tout)+(r.files.length ? ' · 파일 '+r.files.length+'개' : ''); }
+  }
+  else if (e.type === 'gap'){ tag = '<span class="lt gap">일시정지</span>'; txt = esc(e.g.x)+' '+fmtDur(e.g.r1-e.g.r0)+' · 재생에서 건너뜀'; }
+  return '<time>'+t+'</time>'+tag+'<span class="lx">'+txt+'</span>';
+}
+function renderFiles(newOnes){
+  $('#file-count').textContent = fileList.length;
+  const show = fileList.slice(-14).reverse();
+  $('#files').innerHTML = show.length ? show.map(f => '<code class="'+(newOnes && newOnes.indexOf(f) >= 0 ? 'new' : '')+'" title="'+esc(f)+'">'+esc(f)+'</code>').join('') : '<p class="empty" style="width:100%">아직 완료된 작업이 없습니다.</p>';
+}
+function handle(e, live){
+  if (e.type === 'end' && e.run.k !== 'stopped'){ e.run.files.forEach(f => { if (fileList.indexOf(f) < 0) fileList.push(f); }); }
+  if (!live) return;
+  const li = document.createElement('li'); li.className = 'new'; li.innerHTML = logHTML(e);
+  const log = $('#log'); log.insertBefore(li, log.firstChild); while (log.children.length > 60) log.removeChild(log.lastChild);
+  logItems.push(e); $('#log-count').textContent = logItems.length;
+  if (e.type === 'end' && e.run.k !== 'stopped') renderFiles(e.run.files);
+  if (state.view !== 'workflows') return;
+  if (e.type === 'user'){ flash(userEl); spawnPacket(userEdge, false, 'user', () => flash(dirEl)); }
+  else if (e.type === 'start'){ const r = e.run; spawnPacket(edgeEls[r.ag.code], false, r.k === 'work' ? 'work' : 'review', () => flash(nodeEls[r.ag.code])); }
+  else if (e.type === 'end'){
+    const r = e.run;
+    spawnPacket(edgeEls[r.ag.code], true, r.k, () => flash(dirEl));
+    floatText(r.ag.x, r.ag.y - 52, (r.k === 'stopped' ? '■ 중단 ' : '✓ ')+fmtClock(r.sec), r.k);
+  }
+}
+function rebuildTo(r){
+  clearPackets(); logItems = []; fileList = [];
+  const lis = [];
+  P.ev.forEach(e => { if (e.r <= r){ handle(e, false); logItems.push(e); lis.push('<li>'+logHTML(e)+'</li>'); } });
+  $('#log').innerHTML = lis.slice(-60).reverse().join('');
+  $('#log-count').textContent = logItems.length;
+  renderFiles(null);
+}
+function fireBetween(a, b){ P.ev.forEach(e => { if (e.r > a && e.r <= b) handle(e, true); }); }
+
+/* ---------- drawing per frame ---------- */
+let lastClock = '', lastPhase = '', runKey = '';
+function drawWorkflows(r){
+  const act = new Map(); P.runs.forEach(x => { if (x.rs <= r && r < x.re) act.set(x.a, x); });
+  AGENTS.forEach(a => {
+    const el = nodeEls[a.code], used = P.byAgent[a.id], x = act.get(a.id);
+    let started = 0, done = false; used.forEach(q => { if (q.rs <= r) started++; if (q.re <= r) done = true; });
+    const live = x ? (x.k === 'stopped' ? 'review' : x.k) : '';
+    const cls = x ? live : (done ? 'done' : (used.length ? 'idle' : 'never'));
+    if (el._cls !== cls){ el.classList.remove('work','review','stopped','done','idle','never'); el.classList.add(cls); el._cls = cls; }
+    const k = x ? (r - x.rs)/(x.re - x.rs) : (done ? 1 : 0);
+    const off = (RING*(1-k)).toFixed(1); if (el._off !== off){ el._ring.setAttribute('stroke-dashoffset', off); el._off = off; }
+    if (el._n !== started){ el._badge.classList.toggle('show', started > 0); el._badgeT.textContent = started; el._n = started; }
+    const ecls = x ? 'edge on '+live : (done ? 'edge done' : 'edge'); const ed = edgeEls[a.code]; if (ed._c !== ecls){ ed.setAttribute('class', ecls); ed._c = ecls; }
+  });
+  dirEl.classList.toggle('busy', act.size > 0);
+  const c = kst(P.t0 + r*1000); if (c !== lastClock){ $('#clock').textContent = c; lastClock = c; }
+  let ph;
+  if (state.v >= P.V && !state.playing) ph = '기록 끝 · '+(state.endedAt ? '잠시 뒤 처음부터 다시 재생합니다' : '재생 버튼으로 다시 볼 수 있습니다');
+  else if (inGap(P, r)) ph = '사용자 일시정지 구간 · 재생에서 건너뜁니다';
+  else if (act.size > 1) ph = '병렬 실행 · '+Array.from(act.values()).map(x => x.ag.full).join(' ∥ ');
+  else if (act.size === 1){ const x = act.values().next().value; ph = x.ag.full+' · '+x.t; }
+  else ph = '디렉터 단계 · 결과 확인, 다음 지시 준비, 사용자 답 대기';
+  if (ph !== lastPhase){ $('#phase').textContent = ph; lastPhase = ph; }
+  drawRunning(r, act);
+}
+function drawRunning(r, act){
+  const list = Array.from(act.values()).sort((a, b) => a.rs - b.rs);
+  const gap = inGap(P, r);
+  const key = list.map(x => x.i).join(',')+'|'+(gap?1:0);
+  if (key !== runKey){
+    runKey = key; $('#active-count').textContent = list.length;
+    $('#running').innerHTML = list.length ? list.map(x => '<div class="ri '+(x.k === 'stopped' ? 'review' : x.k)+'" data-i="'+x.i+'"><div class="ri-top"><span class="ri-dot"></span><b>'+x.ag.full+'</b><span class="ri-t mono"></span></div><div class="ri-task">'+esc(x.t)+'</div><div class="ri-bar"><i></i></div></div>').join('')
+      : '<p class="empty">'+(gap ? '사용자가 작업을 멈춘 구간입니다. 재생에서는 건너뜁니다.' : '실행 중인 에이전트가 없습니다. 디렉터가 결과를 읽고 다음 지시를 준비하거나 사용자의 답을 기다리는 구간입니다.')+'</p>';
+  }
+  list.forEach(x => {
+    const el = $('.ri[data-i="'+x.i+'"]'); if (!el) return;
+    el.querySelector('.ri-bar i').style.width = (clamp01((r-x.rs)/(x.re-x.rs))*100).toFixed(2)+'%';
+    el.querySelector('.ri-t').textContent = fmtClock(r-x.rs)+' / '+fmtClock(x.sec);
+  });
+}
+function drawScrub(r){
+  const k = P.V ? clamp01(state.v/P.V) : 0;
+  $('#scrub-fill').style.width = (k*100).toFixed(3)+'%';
+  $('#scrub-head').style.left = (k*100).toFixed(3)+'%';
+  $('#scrub').setAttribute('aria-valuenow', Math.round(k*100));
+  $('#scrub-time').textContent = fmtClock(activeOf(P, Math.max(0, r)))+' / '+fmtClock(P.activeTot);
+}
+function drawTraces(r){
+  const head = $('#g-head'); if (!head) return;
+  head.style.left = (vOf(P, r)/P.V*100).toFixed(3)+'%';
+  P.runs.forEach(x => {
+    const f = x._fill; if (!f) return;
+    const k = clamp01((r - x.rs)/(x.re - x.rs)); const w = (k*100).toFixed(1)+'%';
+    if (f._w !== w){ f.style.width = w; f._w = w; }
+  });
+}
+
+/* ---------- loop ---------- */
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(.1, (now - last)/1000); last = now;
+  if (state.playing){
+    state.v += dt*state.speed;
+    if (state.v >= P.V){ state.v = P.V; state.playing = false; state.endedAt = now; syncPlay(); }
+  } else if (state.endedAt && now - state.endedAt > 5000 && !reduce){ restart(); }
+  const r = rOf(P, state.v);
+  if (r !== state.r || state.seek){
+    if (state.seek || r < state.r){ rebuildTo(r); state.seek = false; }
+    else fireBetween(state.r, r);
+    state.r = r;
+  }
+  if (state.view === 'workflows'){ drawWorkflows(r); drawScrub(r); }
+  else if (state.view === 'traces') drawTraces(r);
+  stepPackets(now);
+  requestAnimationFrame(frame);
+}
+function restart(){ state.v = -state.speed*0.8; state.seek = true; state.endedAt = 0; state.playing = true; syncPlay(); }
+const ICON_PLAY = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.8v10.4a.6.6 0 0 0 .9.5l8.3-5.2a.6.6 0 0 0 0-1L4.9 2.3a.6.6 0 0 0-.9.5z"/></svg>';
+const ICON_PAUSE = '<svg viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="2.5" width="3" height="11" rx="1"/><rect x="9.5" y="2.5" width="3" height="11" rx="1"/></svg>';
+function syncPlay(){
+  const b = $('#btn-play'); b.innerHTML = state.playing ? ICON_PAUSE : ICON_PLAY; b.setAttribute('aria-label', state.playing ? '일시정지' : '재생');
+  $('#live').classList.toggle('paused', !state.playing); $('#live-t').textContent = state.playing ? '기록 재생 중' : '재생 멈춤';
+}
+function togglePlay(){
+  if (state.playing){ state.playing = false; state.endedAt = 0; }
+  else { if (state.v >= P.V){ state.v = 0; state.seek = true; } state.playing = true; state.endedAt = 0; }
+  syncPlay();
+}
+
+/* ---------- scrubber ---------- */
+function buildScrub(){
+  const x = r => (vOf(P, r)/P.V*100).toFixed(3)+'%';
+  let h = '';
+  P.gl.forEach(g => { h += '<div class="scrub-gap" style="left:'+x(g.r0)+';width:calc('+x(g.r1)+' - '+x(g.r0)+')"></div>'; });
+  P.runs.forEach(r => { h += '<div class="scrub-run '+r.k+'" style="left:'+x(r.rs)+';width:calc('+x(r.re)+' - '+x(r.rs)+')"></div>'; });
+  P.events.forEach(e => { if (e.k === 'approve' || e.k === 'decide') h += '<div class="scrub-mark" style="left:'+x((Date.parse(e.t)-P.t0)/1000)+'"></div>'; });
+  $('#scrub-layer').innerHTML = h;
+}
+function seekFromEvent(ev){
+  const rc = $('#scrub').getBoundingClientRect(); const k = clamp01((ev.clientX - rc.left)/rc.width);
+  state.v = k*P.V; state.seek = true; state.endedAt = 0;
+}
+(() => {
+  const sc = $('#scrub'); let drag = false;
+  sc.addEventListener('pointerdown', ev => { drag = true; sc.setPointerCapture(ev.pointerId); seekFromEvent(ev); });
+  sc.addEventListener('pointermove', ev => { if (drag) seekFromEvent(ev); });
+  sc.addEventListener('pointerup', () => { drag = false; });
+  sc.addEventListener('keydown', ev => {
+    const step = P.V/40;
+    if (ev.key === 'ArrowRight'){ state.v = Math.min(P.V, state.v + step); state.seek = true; ev.preventDefault(); }
+    if (ev.key === 'ArrowLeft'){ state.v = Math.max(0, state.v - step); state.seek = true; ev.preventDefault(); }
+  });
+})();
+
+/* ---------- inspector ---------- */
+function openInsp(id){
+  const box = $('#insp'); $$('.sel', $('#graph')).forEach(e => e.classList.remove('sel'));
+  let h = '';
+  if (id === 'director'){
+    const d = P.director; dirEl.classList.add('sel');
+    h = '<div class="insp-h"><span class="insp-code">DIR</span><div><b>총괄 디렉터</b><div class="note mono">메인 대화 · CLAUDE.md</div></div><button class="insp-x" aria-label="닫기">✕</button></div>'
+      + '<p>요청 파악 → learnings 읽기 → 에이전트 선정 → 지시 → 인수인계 관리 → 교차 검토 → 충돌 조정 → 최종 보고 → learnings 기록. 서브에이전트는 서로를 부를 수 없어서 모든 조율을 디렉터가 합니다.</p>'
+      + '<div class="runs"><span>이 프로젝트에서 · 생성 '+fmtN(d.tout)+' 토큰 · 도구 '+d.tools+'회 · API 환산 '+money(d.cost)+'</span><span>에이전트 '+P.runs.length+'회 호출 · 사용자 결정 '+P.decisions+'회 반영</span></div>';
+  } else if (id === 'user'){
+    userEl.classList.add('sel');
+    h = '<div class="insp-h"><span class="insp-code" style="color:var(--amber)">YOU</span><div><b>사용자</b><div class="note mono">최종 결정권자</div></div><button class="insp-x" aria-label="닫기">✕</button></div>'
+      + '<p>방향을 승인하고, 비용이 드는 일·파일 삭제·외부 게시를 허락합니다. 디렉터는 결과가 크게 갈리는 것만 묻고, 승인 범위 안에서는 다시 묻지 않습니다.</p>'
+      + '<div class="runs">'+P.events.map(e => '<span><span class="mono">'+kst(Date.parse(e.t), false)+'</span> · '+esc(e.x)+'</span>').join('')+'</div>';
+  } else {
+    const a = AG[id], runs = P.byAgent[id]; nodeEls[a.code].classList.add('sel');
+    h = '<div class="insp-h"><span class="insp-code">'+a.code+'</span><div><b>'+a.full+'</b><div class="note mono">'+a.id+'</div></div><button class="insp-x" aria-label="닫기">✕</button></div>'
+      + '<p>'+a.role+'</p><dl><dt>도구</dt><dd>'+a.tools.map(t => '<span class="tool '+(t==='Write'||t==='Edit'?'w':t==='WebSearch'?'web':'')+'">'+t+'</span>').join('')+'</dd><dt>쓰는 폴더</dt><dd class="mono" style="font-size:11.5px">'+a.dir+'</dd><dt>검토자</dt><dd>'+a.rev+'</dd></dl>'
+      + '<div class="runs">'+(runs.length ? runs.map(r => '<span><span class="mono">'+kst(Date.parse(r.s), false)+'</span> · '+esc(r.t)+' · '+fmtDur(r.sec)+' · 생성 '+fmtK(r.tout)+'</span>').join('') : '<span>이 프로젝트에서는 호출하지 않았습니다.</span>')+'</div>';
+  }
+  box.innerHTML = h; box.hidden = false; state.insp = id;
+  $('.insp-x', box).addEventListener('click', closeInsp);
+}
+function closeInsp(){ $('#insp').hidden = true; state.insp = null; $$('.sel', $('#graph')).forEach(e => e.classList.remove('sel')); }
+
+/* ---------- hero ---------- */
+function countUp(el, to, fmt){
+  if (reduce){ el.textContent = fmt(to); return; }
+  const from = el._v || 0, t0 = performance.now(), d = 700;
+  const step = now => { const k = clamp01((now - t0)/d), e = 1 - Math.pow(1-k, 3); el.textContent = fmt(from + (to-from)*e); if (k < 1) requestAnimationFrame(step); else el._v = to; };
+  requestAnimationFrame(step);
+}
+function renderHero(){
+  $('#kpi-title').textContent = P.id.toUpperCase()+' · '+P.name+' · '+P.sub;
+  const box = $('#kpis');
+  if (!box.children.length){
+    box.innerHTML = ['runs','time','out','dec'].map(k => '<div class="kpi"><span class="kpi-l"></span><b class="kpi-v" data-k="'+k+'">0</b><span class="kpi-s"></span></div>').join('');
+  }
+  const set = (k, label, val, fmt, sub) => { const v = $('.kpi-v[data-k="'+k+'"]'); const card = v.parentNode; $('.kpi-l', card).textContent = label; $('.kpi-s', card).textContent = sub; countUp(v, val, fmt); };
+  set('runs', '에이전트 실행', P.runs.length, x => Math.round(x)+'회', '교차 검토·검수 '+P.reviews+'회 포함');
+  set('time', '에이전트 작업 시간 합계', P.agg.sumSec, x => fmtDur(x), '동시 실행으로 '+fmtDur(P.agg.overlapSec)+' 겹침');
+  set('out', '생성 토큰', P.totOut, x => fmtN(x), '디렉터 포함 · 읽은 토큰 '+fmtK(P.totRead));
+  set('dec', '사용자 결정', P.decisions, x => Math.round(x)+'회', '승인·선택한 지점');
+}
+
+/* ---------- traces ---------- */
+function renderTraces(){
+  const p = P, W = p.V, x = r => vOf(p, r)/W*100;
+  $('#tr-name').textContent = p.id.toUpperCase()+' · '+p.name+' · '+p.sub;
+  $('#tr-sum').innerHTML = [
+    '요청 → 마무리 '+fmtDur(p.agg.wallSec)+(p.gl.length ? ' (일시정지 제외)' : ''),
+    '실행 '+p.runs.length+'회', '최대 동시 '+p.maxPar+'개', '겹친 시간 '+fmtDur(p.agg.overlapSec)
+  ].map(t => '<span class="chip">'+t+'</span>').join('');
+  let h = '<div class="g-row g-axis"><div class="g-label"><span class="g-ag">KST</span></div><div class="g-track"></div></div>';
+  h += '<div class="g-row g-root"><div class="g-label"><span class="g-ag"><i class="g-dot" style="background:var(--ink)"></i>총괄 디렉터</span><span class="g-task">메인 대화 · 요청부터 마무리까지</span></div><div class="g-track"><div class="g-rootbar" style="left:0;width:'+x(p.rEnd).toFixed(2)+'%"></div>'
+    + p.events.map(e => '<span class="g-dia '+e.k+'" style="left:'+x((Date.parse(e.t)-p.t0)/1000).toFixed(2)+'%" title="'+kst(Date.parse(e.t))+' · '+esc(e.x)+'"></span>').join('') + '</div></div>';
+  p.runs.forEach(r => {
+    const l = x(r.rs), w = Math.max(.4, x(r.re) - l), out = w < 6.5;
+    h += '<div class="g-row'+(state.sel === r.i ? ' sel' : '')+'" data-i="'+r.i+'" tabindex="0" role="button" aria-label="'+esc(r.ag.full+' · '+r.t+' · '+fmtDur(r.sec))+'">'
+      + '<div class="g-label"><span class="g-ag"><i class="g-dot '+r.k+'"></i>'+r.ag.full+'</span><span class="g-task" title="'+esc(r.t)+'">'+esc(r.t)+'</span></div>'
+      + '<div class="g-track"><div class="g-bar '+r.k+(out ? ' out' : '')+'" style="left:'+l.toFixed(2)+'%;width:'+w.toFixed(2)+'%;--i:'+r.i+'" title="'+kst(Date.parse(r.s))+' → '+kst(Date.parse(r.e))+' · '+fmtDur(r.sec)+'"><i class="g-fill"></i><span class="g-dur">'+fmtClock(r.sec)+'</span></div></div></div>';
+  });
+  let o = '<div class="g-over">';
+  const step = p.activeTot <= 3600 ? 300 : (p.activeTot <= 7200 ? 900 : 1800);
+  const stepMs = step*1000; let tk = Math.ceil(p.t0/stepMs)*stepMs;
+  while (tk <= p.t0 + p.rEnd*1000){
+    const rr = (tk - p.t0)/1000;
+    if (!inGap(p, rr)) o += '<div class="g-tick" style="left:'+x(rr).toFixed(2)+'%"><span>'+kst(tk, false)+'</span></div>';
+    tk += stepMs;
+  }
+  p.gl.forEach(g => { o += '<div class="g-gap" style="left:'+x(g.r0).toFixed(2)+'%;width:'+(x(g.r1)-x(g.r0)).toFixed(2)+'%"><span>'+esc(g.x)+' '+fmtDur(g.r1-g.r0)+'</span></div>'; });
+  p.events.forEach(e => { if (e.k === 'approve' || e.k === 'decide') o += '<div class="g-mark" style="left:'+x((Date.parse(e.t)-p.t0)/1000).toFixed(2)+'%"></div>'; });
+  o += '<div class="g-head" id="g-head"></div></div>';
+  const g = $('#gantt'); g.innerHTML = h + o;
+  p.runs.forEach(r => { r._fill = $('.g-row[data-i="'+r.i+'"] .g-fill', g); if (r._fill) r._fill._w = null; });
+  $$('.g-row[data-i]', g).forEach(row => {
+    const pick = () => { state.sel = +row.dataset.i; $$('.g-row.sel', g).forEach(e => e.classList.remove('sel')); row.classList.add('sel'); renderDetail(); };
+    row.addEventListener('click', pick); row.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); pick(); } });
+  });
+  renderDetail(); drawTraces(Math.max(0, state.r));
+}
+function renderDetail(){
+  const r = P.runs[state.sel] || P.runs[0]; if (!r) return;
+  const read = r.tin + r.tcr + r.tcc, cacheP = read ? r.tcr/read*100 : 0, other = Math.max(0, r.writes);
+  const tot = Math.max(1, r.reads + r.web + r.bash + other);
+  const seg = (n, c) => n ? '<i class="'+c+'" style="width:'+(n/tot*100).toFixed(2)+'%"></i>' : '';
+  const kindName = {work:'작업', review:'검토 · 검수', stopped:'결과 없이 종료'}[r.k];
+  let filesMsg;
+  if (r.files.length) filesMsg = r.files.map(f => '<code>'+esc(f)+'</code>').join('');
+  else if (r.k === 'stopped') filesMsg = '<em>사용자가 작업을 멈춰 결과 파일 없이 끝났습니다. 재개 후 같은 검토를 다시 실행했습니다.</em>';
+  else if (r.a === 'compliance-reviewer') filesMsg = '<em>쓰기 도구가 없는 검수자라 파일을 만들지 않습니다. 검수 결과는 디렉터가 reviews/에 저장했습니다.</em>';
+  else filesMsg = '<em>파일 없음</em>';
+  $('#detail').innerHTML = '<div class="card-h"><div><p class="eyebrow">Span '+pad(r.i+1)+' / '+pad(P.runs.length)+'</p><h2 class="t2">'+r.ag.full+' <span class="mono" style="font-size:12px;color:var(--mut);font-weight:500">'+r.a+'</span></h2><p class="cap">'+esc(r.t)+'</p></div><span class="pill '+r.k+'">'+kindName+'</span></div>'
+    + '<div class="dgrid">'
+    + '<div class="dstat"><span>걸린 시간</span><b>'+fmtDur(r.sec)+'</b><em>'+kst(Date.parse(r.s))+' → '+kst(Date.parse(r.e))+' KST</em></div>'
+    + '<div class="dstat"><span>생성 토큰</span><b>'+fmtN(r.tout)+'</b><em>모델이 새로 쓴 양</em></div>'
+    + '<div class="dstat"><span>읽은 토큰</span><b>'+fmtK(read)+'</b><em>이 중 캐시 '+cacheP.toFixed(1)+'%</em></div>'
+    + '<div class="dstat"><span>API 정가 환산</span><b>'+money(r.cost)+'</b><em>Opus 5.5 기준 추정</em></div></div>'
+    + '<div style="margin-top:14px"><div class="note">도구 호출 '+r.tools+'회</div><div class="tbar">'+seg(r.reads,'c1')+seg(r.web,'c2')+seg(r.bash,'c3')+seg(other,'c4')+'</div>'
+    + '<div class="tleg"><span><i class="c1"></i>읽기·검색 '+r.reads+'</span><span><i class="c2"></i>웹 검색 '+r.web+'</span><span><i class="c3"></i>명령 실행 '+r.bash+'</span><span><i class="c4"></i>쓰기·기타 '+other+'</span></div></div>'
+    + '<div class="dfiles"><span>만든 파일</span>'+filesMsg+'</div>';
+}
+
+/* ---------- usage ---------- */
+function gaugeSVG(id){
+  let t = '';
+  for (let i = 0; i <= 4; i++){
+    const a = Math.PI - i*Math.PI/4, c = Math.cos(a), s = Math.sin(a);
+    t += '<line class="g-tk" x1="'+(110+c*100).toFixed(1)+'" y1="'+(112-s*100).toFixed(1)+'" x2="'+(110+c*106).toFixed(1)+'" y2="'+(112-s*106).toFixed(1)+'"/>'
+      + '<text class="g-tl" x="'+(110+c*117).toFixed(1)+'" y="'+(115-s*117).toFixed(1)+'">'+(i*25)+'</text>';
+  }
+  return '<svg viewBox="0 -8 220 132" class="gauge" aria-hidden="true"><defs><linearGradient id="'+id+'-gr" x1="0" x2="1"><stop offset="0" style="stop-color:var(--violet)"/><stop offset="1" style="stop-color:var(--teal)"/></linearGradient></defs>'
+    + '<path class="g-trk" d="M20 112 A90 90 0 0 1 200 112"/>'
+    + '<path class="g-val" id="'+id+'-v" d="M20 112 A90 90 0 0 1 200 112" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" style="stroke:url(#'+id+'-gr)"/>'+t+'</svg>'
+    + '<div class="gnum"><b id="'+id+'-n">0%</b><span id="'+id+'-s"></span></div>';
+}
+function setGauge(id, k, label, sub){
+  const v = $('#'+id+'-v'); requestAnimationFrame(() => v.setAttribute('stroke-dashoffset', (100 - clamp01(k)*100).toFixed(2)));
+  $('#'+id+'-n').textContent = label; $('#'+id+'-s').textContent = sub;
+}
+function renderHumanGauge(){
+  const p = P;
+  const days = +$('#human-days').value, hum = days*8*3600, act = p.agg.wallSec, red = clamp01(1 - act/hum);
+  $('#human-out').textContent = days+'일 · '+(days*8)+'시간';
+  setGauge('g1', red, (red*100).toFixed(1)+'%', '약 '+Math.max(1, Math.round(hum/act))+'배 빠름');
+  $('#g1-foot').innerHTML = '실측 <b>'+fmtDur(act)+'</b> (요청부터 마무리까지'+(p.gl.length ? ', 일시정지 제외' : '')+') · 가정 <b>'+(days*8)+'시간</b> (하루 8시간 기준). 가정값은 직접 바꿀 수 있습니다.';
+}
+function renderUsage(){
+  const p = P;
+  ['g1','g2','g3'].forEach(id => { if (!$('#'+id+'-v')) $('#'+id).innerHTML = gaugeSVG(id); });
+  renderHumanGauge();
+  const cacheK = p.totCR/p.totRead;
+  setGauge('g2', cacheK, (cacheK*100).toFixed(1)+'%', '읽은 토큰 중 캐시');
+  $('#g2-foot').innerHTML = '읽은 토큰 <b>'+fmtK(p.totRead)+'</b> 중 <b>'+fmtK(p.totCR)+'</b>는 이미 처리한 맥락을 다시 읽은 것입니다. 캐시 읽기는 새 입력보다 20배 쌉니다($0.20 vs $4).';
+  const parK = p.agg.overlapSec/p.agg.sumSec;
+  setGauge('g3', parK, (parK*100).toFixed(1)+'%', '최대 '+p.maxPar+'개 동시');
+  $('#g3-foot').innerHTML = '에이전트 작업 <b>'+fmtDur(p.agg.sumSec)+'</b> 중 <b>'+fmtDur(p.agg.overlapSec)+'</b>는 다른 에이전트와 동시에 진행됐습니다. 서로 기다릴 필요 없는 작업은 병렬로 돌립니다.';
+  renderTokens();
+  const parts = [['출력(생성)', p.cost.out, 'var(--violet)'], ['캐시 쓰기', p.cost.cw, 'var(--teal)'], ['캐시 읽기', p.cost.cr, 'var(--amber)'], ['새 입력', p.cost.inp, 'var(--line-3)']];
+  const cb = $('#cost-big'); countUp(cb, p.cost.total, money);
+  $('#cost-cap').textContent = '에이전트 '+p.runs.length+'회 + 디렉터(메인 대화) · 모두 Claude Opus 5.5';
+  $('#cbar').innerHTML = parts.map(q => '<i style="width:0;background:'+q[2]+'" data-w="'+(q[1]/p.cost.total*100).toFixed(2)+'"></i>').join('');
+  requestAnimationFrame(() => $$('#cbar i').forEach(i => { i.style.width = i.dataset.w+'%'; }));
+  $('#cleg').innerHTML = parts.map(q => '<div><i style="background:'+q[2]+'"></i><span>'+q[0]+'</span><b>'+money(q[1])+'</b></div>').join('');
+  const ag = aggByAgent(p).sort((a, b) => b.cost - a.cost).slice(0, 5);
+  $('#ctop').innerHTML = '<div class="note">비용이 큰 순서</div>' + ag.map(o => '<div><span>'+(o.a === 'director' ? '총괄 디렉터' : AG[o.a].full)+(o.n > 1 ? ' <span class="note mono">×'+o.n+'</span>' : '')+'</span><b>'+money(o.cost)+'</b></div>').join('');
+  renderCompare();
+}
+function aggByAgent(p){
+  const m = new Map();
+  p.runs.forEach(r => { const o = m.get(r.a) || {a:r.a, n:0, out:0, read:0, cost:0}; o.n++; o.out += r.tout; o.read += r.tin + r.tcr + r.tcc; o.cost += r.cost; m.set(r.a, o); });
+  const d = p.director; const arr = Array.from(m.values());
+  arr.push({a:'director', n:1, out:d.tout, read:d.tin + d.tcr + d.tcc, cost:d.cost});
+  return arr;
+}
+function renderTokens(){
+  const p = P, mode = state.tokMode, rows = aggByAgent(p).sort((a, b) => b[mode] - a[mode]), mx = Math.max.apply(null, rows.map(o => o[mode]));
+  $('#tok-cap').textContent = mode === 'out' ? '모델이 새로 쓴 토큰입니다. 문서·카피·검토 의견의 양에 가깝습니다.' : '모델이 읽은 토큰입니다. 파일·지침·이전 맥락을 읽은 양이며 대부분 캐시입니다.';
+  $('#tok-rows').innerHTML = rows.map(o => '<div class="tk"><span class="tk-n" title="'+(o.a === 'director' ? '총괄 디렉터' : AG[o.a].full)+'">'+(o.a === 'director' ? '총괄 디렉터' : AG[o.a].full)+(o.n > 1 ? ' <em>×'+o.n+'</em>' : '')+'</span><div class="tk-bar"><i class="'+mode+'" data-w="'+(o[mode]/mx*100).toFixed(2)+'"></i></div><span class="tk-v">'+fmtK(o[mode])+'</span></div>').join('');
+  requestAnimationFrame(() => requestAnimationFrame(() => $$('#tok-rows i').forEach(i => { i.style.width = i.dataset.w+'%'; })));
+}
+function renderCompare(){
+  const a = PROJ.p1, b = PROJ.p2;
+  const rows = [
+    ['에이전트 실행', a.runs.length+'회', b.runs.length+'회'],
+    ['교차 검토 · 검수', a.reviews+'회', b.reviews+'회'],
+    ['요청 → 마무리 (일시정지 제외)', fmtDur(a.agg.wallSec), fmtDur(b.agg.wallSec)],
+    ['에이전트 작업 시간 합계', fmtDur(a.agg.sumSec), fmtDur(b.agg.sumSec)],
+    ['생성 토큰 (디렉터 포함)', fmtN(a.totOut), fmtN(b.totOut)],
+    ['캐시 재사용률', (a.totCR/a.totRead*100).toFixed(1)+'%', (b.totCR/b.totRead*100).toFixed(1)+'%'],
+    ['API 정가 환산', money(a.cost.total), money(b.cost.total)],
+    ['사용자 결정', a.decisions+'회', b.decisions+'회']
+  ];
+  $('#cmp').innerHTML = '<thead><tr><th>항목</th><th class="n">P1 · 놓고 15초 (기획 문서)</th><th class="n">P2 · 노도르 10초 (리서치부터 촬영 전 검수까지)</th></tr></thead><tbody>'
+    + rows.map(r => '<tr><td>'+r[0]+'</td><td class="n">'+r[1]+'</td><td class="n">'+r[2]+'</td></tr>').join('') + '</tbody>';
+}
+
+/* ---------- protocol ---------- */
+function renderProtocol(){
+  const ft = $('#ftags'); if (!ft.children.length){
+    ft.innerHTML = ['p1','p2'].map(k => { const t = FTAGS[k], s = t.c + t.i + t.h + t.u;
+      return '<div class="ftrow"><span class="mono" style="color:var(--sub)">'+k.toUpperCase()+'</span><div><div class="ftbar">'
+        + [['c','var(--teal)'],['i','var(--amber)'],['h','var(--rose)'],['u','var(--line-3)']].map(q => '<i style="width:'+(t[q[0]]/s*100).toFixed(2)+'%;background:'+q[1]+'" title="'+t[q[0]]+'"></i>').join('')
+        + '</div><div class="note mono" style="margin-top:3px">확인 '+t.c+' · 추론 '+t.i+' · 가설 '+t.h+' · 미확인 '+t.u+'</div></div></div>'; }).join('');
+    $('#decs').innerHTML = DECS.map(d => '<div class="dec"><time>'+d[0]+'</time><div><div class="q">'+esc(d[1])+'</div><span class="a">'+esc(d[2])+'</span></div></div>').join('');
+    const T = ['Read','Write','Edit','Bash','WebSearch'];
+    $('#tmx').innerHTML = '<thead><tr><th>에이전트</th>'+T.map(t => '<th>'+t+'</th>').join('')+'</tr></thead><tbody>'
+      + AGENTS.map(a => '<tr><td>'+a.full+'</td>'+T.map(t => '<td><span class="dot '+(a.tools.indexOf(t) >= 0 ? (t === 'Write' || t === 'Edit' ? 'w' : '') : 'no')+'" aria-label="'+(a.tools.indexOf(t) >= 0 ? '있음' : '없음')+'"></span></td>').join('')+'</tr>').join('') + '</tbody>';
+  }
+}
+let stepIdx = 0, stepTimer = null;
+function cycleSteps(){
+  const steps = $$('#steps .step');
+  steps.forEach((s, i) => s.classList.toggle('on', i === stepIdx));
+  stepIdx = (stepIdx + 1) % steps.length;
+}
+
+/* ---------- views & project ---------- */
+const VIEWS = ['workflows','traces','usage','protocol'];
+function moveInd(){
+  const t = $('.tab[aria-selected="true"]'), ind = $('#tab-ind'); if (!t) return;
+  ind.style.left = t.offsetLeft+'px'; ind.style.width = t.offsetWidth+'px';
+}
+function setView(v){
+  if (VIEWS.indexOf(v) < 0) v = 'workflows';
+  state.view = v;
+  VIEWS.forEach(n => { const sec = $('#view-'+n), on = n === v; sec.hidden = !on; if (on){ sec.classList.remove('enter'); void sec.offsetWidth; sec.classList.add('enter'); } $('#tab-'+n).setAttribute('aria-selected', on ? 'true' : 'false'); $('#tab-'+n).tabIndex = on ? 0 : -1; });
+  moveInd();
+  if (v === 'traces') renderTraces();
+  if (v === 'usage') renderUsage();
+  if (v === 'protocol'){ renderProtocol(); if (!reduce && !stepTimer){ cycleSteps(); stepTimer = setInterval(() => { if (state.view === 'protocol') cycleSteps(); }, 2300); } }
+  if (v === 'workflows'){ runKey = ''; lastPhase = ''; lastClock = ''; }
+}
+function setProject(pid){
+  if (!PROJ[pid]) return;
+  P = PROJ[pid];
+  $$('.proj button').forEach(b => b.setAttribute('aria-pressed', b.dataset.pid === pid ? 'true' : 'false'));
+  state.speed = pid === 'p1' ? 60 : 120; syncSpeed();
+  state.sel = 0; state.v = reduce ? P.V : -state.speed*0.8; state.r = -1e9; state.seek = true; state.endedAt = 0; state.playing = !reduce;
+  closeInsp(); clearPackets(); runKey = ''; lastPhase = '';
+  AGENTS.forEach(a => { nodeEls[a.code]._cls = null; nodeEls[a.code]._off = null; nodeEls[a.code]._n = null; edgeEls[a.code]._c = null; });
+  buildScrub(); renderHero(); syncPlay();
+  if (state.view === 'traces') renderTraces();
+  if (state.view === 'usage') renderUsage();
+}
+function syncSpeed(){ $$('#speed button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.speed === state.speed ? 'true' : 'false')); }
+
+/* ---------- wire up ---------- */
+buildGraph();
+function go(v){ setView(v); try { if (location.hash !== '#'+v) location.hash = v; } catch (err) {} }
+$$('.tab').forEach(t => t.addEventListener('click', () => go(t.dataset.view)));
+$('.brand').addEventListener('click', ev => { ev.preventDefault(); go('workflows'); });
+$('#tabs').addEventListener('keydown', ev => {
+  if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
+  const i = VIEWS.indexOf(state.view), n = VIEWS[(i + (ev.key === 'ArrowRight' ? 1 : VIEWS.length - 1)) % VIEWS.length];
+  go(n); $('#tab-'+n).focus();
+});
+window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (VIEWS.indexOf(v) >= 0 && v !== state.view) setView(v); });
+window.addEventListener('resize', moveInd);
+$$('.proj button').forEach(b => b.addEventListener('click', () => setProject(b.dataset.pid)));
+$$('#speed button').forEach(b => b.addEventListener('click', () => { state.speed = +b.dataset.speed; syncSpeed(); }));
+$('#btn-play').addEventListener('click', togglePlay);
+$('#btn-restart').addEventListener('click', restart);
+$('#human-days').addEventListener('input', () => { if (state.view === 'usage') renderHumanGauge(); });
+$$('#tok-mode button').forEach(b => b.addEventListener('click', () => { state.tokMode = b.dataset.mode; $$('#tok-mode button').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); renderTokens(); }));
+document.addEventListener('keydown', ev => {
+  const tag = (ev.target && ev.target.tagName) || '';
+  if (tag === 'INPUT' || tag === 'BUTTON' || (ev.target && ev.target.getAttribute && ev.target.getAttribute('role') === 'button')) return;
+  if (ev.key === ' ' && state.view === 'workflows'){ ev.preventDefault(); togglePlay(); }
+  if (ev.key === 'Escape') closeInsp();
+});
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(moveInd);
+setProject('p1');
+setView(location.hash.slice(1) || 'workflows');
+requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
